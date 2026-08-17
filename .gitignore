@@ -1,0 +1,24 @@
+# 本地辅助工具与会话记录
+.omx/
+**/.omx/
+
+# EIDE 下载缓存、日志与编译输出
+MDK-ARM/.cmsis/
+MDK-ARM/.eide/log/
+MDK-ARM/.eide.usr.ctx.json
+MDK-ARM/build/
+MDK-ARM/bin/
+MDK-ARM/obj/
+MDK-ARM/out/
+
+# Keil 编译输出、用户会话与调试日志
+MDK-ARM/GE2415_BuJin/
+MDK-ARM/*.uvguix.*
+MDK-ARM/*.uvoptx
+MDK-ARM/*.lst
+MDK-ARM/JLinkLog.txt
+MDK-ARM/JLinkSettings.ini
+
+# Windows 临时文件
+Thumbs.db
+Desktop.ini
