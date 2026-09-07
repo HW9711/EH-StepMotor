@@ -10,6 +10,7 @@
 #define		E_OV3			 3
 #define		E_Hardware 4		
 #define		E_COMM5		 5
+#define E_ALIGN6       6 //定位校验未通过，主控按现有非零故障处理并保留原始0x06。
 
 
 void Protect(void);
@@ -20,7 +21,6 @@ void Protect_ResetCounters(void);
 
 
 #endif
-
 
 
 
