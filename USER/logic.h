@@ -18,7 +18,6 @@ typedef enum{
     CTLS_CLOSELOOP_RUN,
     CTLS_ERROR,          //错误
 		CTLS_BRAKE,          //刹车
-    CTLS_ALIGN,          //非阻塞上电定位，运行闭环不得改写该状态的PWM。
 }MTSTATUS_TYPEDEF;
 
 
@@ -68,6 +67,7 @@ void Spd_Init(void);			//速度环初始化
 
 uint16_t CRC_Calc(unsigned char *snd, unsigned char num);
 #endif
+
 
 
 

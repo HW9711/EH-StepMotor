@@ -11,12 +11,8 @@ int16_t text_power=0;
 
 
 int16_t text_Spd = 0;
-/*
- * 函数功能：从持续运行的ADC DMA更新电压、两相电流和母线电流；停PWM不冻结保护采样。
- * 输入参数：无。
- * 返回参数：无。
- */
-void Motor_UpdateSamples(void){
+//10KHz--->0.0001S进一次，PWM中断服务函数
+void PWM_InterruptService(void){
 //计算电流
 	//电流AD值1
 	App.Adc.Cur_AD1 = adc_buf[1];
@@ -41,20 +37,6 @@ void Motor_UpdateSamples(void){
 	App.Adc.Current_AllTemp = adc_buf[3] * ADC_CURRENT_SCALE;
 	App.Cal.CurrentT = 	App.Cal.CurrentT*0.5f+App.Adc.Current_AllTemp*0.5f;
 	
-}
-
-/*
- * 函数功能：按PWM节拍更新采样并执行定位或原运行控制，定位输出与闭环输出互斥。
- * 输入参数：无。
- * 返回参数：无。
- */
-void PWM_InterruptService(void){
-	Motor_UpdateSamples();                  //先取得新鲜电流，定位输出前即可执行限流与快速保护。
-	if(App.Status == CTLS_ALIGN){
-		Motor_AlignOutput();                 //定位只使用原始编码器及静止坐标电压，不依赖未建立的电角度。
-		return;                             //禁止下方AllRun=0分支把有效定位PWM清零。
-	}
-
 	
 	Get_Encoder();
 	
@@ -477,3 +459,5 @@ void mcLib_CalcPI1( mcParam_PIController *pParam)
 			pParam->qdSum = 3*pParam->qI_Min;							//1.5倍最小输出值
 		}
 }
+
+

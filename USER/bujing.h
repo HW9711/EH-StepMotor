@@ -245,7 +245,6 @@ typedef struct{
 } mcParam_PIController;
 
 extern AppType App;
-void Motor_UpdateSamples(void); //更新DMA中的电压与电流，PWM关闭后仍用于安全放行判断。
 
 extern mcParam_PIController mcApp_Q_PIParam;
 extern mcParam_PIController mcApp_D_PIParam;
@@ -263,5 +262,6 @@ void Update_PowerStep(void);			//更新开环力量
 void Update_Spd(void);						//更新爬坡速度
 void Return_Uart(void);
 #endif
+
 
 

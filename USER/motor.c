@@ -4,7 +4,6 @@
 #include "usart.h"
 #include "logic.h"
 #include "protect.h"
-#include <stdlib.h> //定位校验用有符号位移绝对值，不依赖滤波转速。
 
 extern MCUART_Type SerUart3;
 volatile uint16_t MCPara[ParaNum] ={0};
@@ -18,7 +17,7 @@ uint16_t SMCPara[ParaNum] = {
 	100,	// -3  积分限幅				
 	24,		// -4  输出限幅
 	
-	300,		// -5  兼容保留旧定位保持时间；新校准时限由motor.h的ALIGN宏控制。
+	300,		// -5  电机初始化定位时间
 	
 	1,		// -6  开环电机运动方向			0 正转					1 反转??ssc 1-0
 	
@@ -78,7 +77,7 @@ uint16_t SMCPara[ParaNum] = {
 	14,		// -42 过流保护值	/10A
 	500,	// -43 过流保护时间	ms
 	
-	100,		// -44 兼容保留旧启动定位时间；已验证零点的普通启停不重复定位。
+	100,		// -44 电机每次启动定位时长ms
 	4,			// -45 编码器偏置变化爬坡周期
 	50,			// -46 开机启动定位的力量	/10			-130
 	
@@ -88,8 +87,8 @@ uint16_t SMCPara[ParaNum] = {
 	5,		// -49 减速度-速度向下爬坡值			-4
 	20,		// -50 爬坡周期-速度爬坡计算周期		-10
 	
-	1,		// -51 兼容保留旧定位爬坡值；新校准按ALIGN_RAMP_MS及相电流限流。
-	500,		// -52 兼容保留旧阻塞循环次数；新校准不执行该循环。
+	1,		// -51 启动定位爬坡值，向上爬坡到启动定位的力量	
+	500,		// -52 向上爬坡的次数规划。
 	
 	
 	0,			//-53	 禁止故障自动复转；故障后必须先收到合法零速帧重新授权。
@@ -198,405 +197,31 @@ void Soft_Init(void){
 
 
 
-/* 定位状态独立于运行状态；调试变量不改变既有串口帧长度。 */
-volatile uint8_t AlignValid = 0U;          //初始零点不可信，必须经过往返校验。
-volatile uint8_t AlignState = ALIGN_WAIT_ZERO; //上电等待零速授权。
-volatile uint8_t AlignAttempt = 0U;        //当前授权已尝试次数。
-volatile uint8_t AlignFailure = 0U;        //保存最近失败原因，重试成功后也保留供调试。
-volatile int16_t AlignDeltaForward = 0;    //A向B的位移观测。
-volatile int16_t AlignDeltaReturn = 0;     //B向A的位移观测。
-volatile int16_t AlignReturnError = 0;     //前后A位置重复性观测。
-volatile float AlignPower = 0.0f;          //PWM节拍逐渐建立的实际电压幅值。
-static uint8_t AlignZeroFrames = 0U;       //连续零速帧计数，非零命令或故障将其清零。
-static uint32_t AlignLastTick = 0U;        //保证主循环只在毫秒改变后推进一次。
-static uint32_t AlignPhaseTick = 0U;       //当前阶段的真实开始时间。
-static uint32_t AlignAttemptTick = 0U;     //单轮加力的总超时基准。
-static uint32_t AlignOffTick = 0U;         //轮间关闭PWM的起点。
-static uint32_t AlignStillTick = 0U;       //固定编码器参考窗口开始时间。
-static int16_t AlignStillAnchor = 0;       //防止每毫秒缓慢爬动被误当静止。
-static int16_t AlignFirstA = 0;            //第一次A相定位的候选计数，尚未写入零点。
-static int16_t AlignCheckB = 0;            //校验B相到达后的计数。
-static volatile uint16_t AlignTableIndex = ALIGN_STEP_COUNTS; //静止坐标磁场方向，不能使用未经校准的编码器角度。
+//用于爬坡定位
+void Lock_Init(void){
+	
+	App.Lock.LockPowerBNow = 0.0f;
+	App.Lock.LockPowerBUnit = (float)MCPara[46]/10.0f/MCPara[52];
+	for(App.Lock.LockBCnt = 0;App.Lock.LockBCnt<MCPara[52];App.Lock.LockBCnt++){
+		App.Lock.LockPowerBNow +=	App.Lock.LockPowerBUnit;
+		Set_OutPut_B(App.Lock.LockPowerBNow,24.0f);		//琐死在A+
+		HAL_Delay(MCPara[51]);//爬坡间隔
+	}
+	HAL_Delay(MCPara[5]);								//开环定位时间
+	Set_OutPut_B(0.0f,24.0f);		//解锁
+	
+	
+	App.Lock.LockPowerANow = 0.0f;
+	App.Lock.LockPowerAUnit = (float)MCPara[46]/10.0f/MCPara[52];
+	for(App.Lock.LockACnt = 0;App.Lock.LockACnt<MCPara[52];App.Lock.LockACnt++){
+		App.Lock.LockPowerANow +=	App.Lock.LockPowerAUnit;
+		Set_OutPut_A(App.Lock.LockPowerANow,24.0f);		//琐死在A+
+		HAL_Delay(MCPara[51]);//爬坡间隔
+	}
+	HAL_Delay(MCPara[5]);								//开环定位时间
+	TIM2->CNT = 0;		//编码器计数的初始化
+	Set_OutPut_A(0.0f,24.0f);		//解锁
 
-/*
- * 函数功能：计算按TIM2实际4000计数周期回绕的原始位移。
- * 输入参数：now为当前计数，before为比较基准。
- * 返回参数：最近半圈内的有符号位移。
- */
-static int16_t Align_Delta(int16_t now, int16_t before)
-{
-    int32_t delta = (int32_t)now - before; //先用有符号宽类型相减，避免0/3999附近下溢。
-    if(delta > (int32_t)((ENCODER_STEPS + 1U) / 2U)){
-        delta -= ENCODER_STEPS + 1U;     //计数周期是ARR+1，不能减3999。
-    }else if(delta < -(int32_t)((ENCODER_STEPS + 1U) / 2U)){
-        delta += ENCODER_STEPS + 1U;     //负向跨零同样按4000修正。
-    }
-    return (int16_t)delta;               //定位运动远小于半圈。
-}
-
-/*
- * 函数功能：重新开始一个原始编码器稳定窗口。
- * 输入参数：now为当前毫秒时间。
- * 返回参数：无。
- */
-static void Align_ResetStill(uint32_t now)
-{
-    AlignStillAnchor = (int16_t)TIM2->CNT; //固定参考而非相邻两点比较，缓慢滑动也会被发现。
-    AlignStillTick = now;                 //窗口不继承上一相的稳定时间。
-}
-
-/*
- * 函数功能：检查编码器在固定位置附近保持静止的时间。
- * 输入参数：now为当前毫秒时间，duration为要求的静止时间。
- * 返回参数：稳定窗口满足返回1，否则返回0。
- */
-static uint8_t Align_IsStill(uint32_t now, uint32_t duration)
-{
-    if(abs(Align_Delta((int16_t)TIM2->CNT, AlignStillAnchor)) > ALIGN_STILL_COUNTS){
-        Align_ResetStill(now);           //位移越界即重新计时，不能把卡滞爬行当稳定。
-    }
-    return ((uint32_t)(now - AlignStillTick) >= duration) ? 1U : 0U; //无符号差值支持HAL节拍回绕。
-}
-
-/*
- * 函数功能：判断关闭PWM后的电压、电流和硬件输入是否允许定位。
- * 输入参数：无。
- * 返回参数：所有物理条件满足返回1，否则返回0。
- */
-static uint8_t Align_SafeToStart(void)
-{
-    return (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == GPIO_PIN_RESET &&
-            App.Cal.voltage >= App.Prot.Allow_Voltage &&
-            App.Cal.voltage <= App.Prot.OverVoltage - 1.0f &&
-            App.Adc.Current_AllTemp >= 0.0f &&
-            App.Cal.Current1 > -ALIGN_PHASE_SOFT_A && App.Cal.Current1 < ALIGN_PHASE_SOFT_A &&
-            App.Cal.Current2 > -ALIGN_PHASE_SOFT_A && App.Cal.Current2 < ALIGN_PHASE_SOFT_A && //关PWM后相电流也必须回落，不能只看母线。
-            App.Adc.Current_AllTemp <= App.Prot.OverCurrent * ALIGN_BUS_LIMIT_RATIO) ? 1U : 0U; //浮点比较也会拒绝NaN。
-}
-
-/*
- * 函数功能：建立上电校准门禁，替代阻塞式Lock_Init。
- * 输入参数：无。
- * 返回参数：无。
- */
-void Motor_AlignInit(void)
-{
-    AlignValid = 0U;                      //上电清计数仅供测量，不能视作定位成功。
-    AlignState = ALIGN_WAIT_ZERO;         //等待后续新鲜的连续零速帧。
-    AlignAttempt = 0U;                    //本次上电尚未加力。
-    AlignZeroFrames = 0U;                 //丢弃初始化期间留下的授权计数。
-    AlignPower = 0.0f;                    //禁止残留定位幅值。
-    SerUart3.NeedZeroRearm = 1U;          //校准通过前禁止普通启动。
-    TIM_PWM_Stop();                       //编码器和ADC继续采样，只关闭功率输出。
-    AlignLastTick = HAL_GetTick();        //从初始化完成时开始非阻塞调度。
-    Align_ResetStill(AlignLastTick);      //等待阶段从当前真实位置确认静止。
-}
-
-/*
- * 函数功能：故障硬停时使角度基准失效，并限制故障中的自动加力。
- * 输入参数：无。
- * 返回参数：无。
- */
-void Motor_AlignOnFault(void)
-{
-    uint8_t wait_release = (AlignValid != 0U ||
-        (AlignState == ALIGN_WAIT_ZERO && AlignAttempt == 0U)) ? 1U : 0U; //正常运行故障可在零速释放后校准；校准中再故障则锁住本轮。
-    AlignValid = 0U;                      //真实故障不能留下可启动的旧零点。
-    AlignState = wait_release ? ALIGN_WAIT_ZERO : ALIGN_FAILED; //连续零速不能反复重启失败的定位。
-    if(wait_release != 0U){
-        AlignAttempt = 0U;               //首次故障释放后可申请一轮有限校准。
-    }
-    AlignFailure = 5U;                    //诊断保留“保护中断”原因，App.Err仍保留具体故障码。
-    AlignZeroFrames = 0U;                 //旧零速帧不能作为故障后的授权。
-    AlignPower = 0.0f;                    //重进定位时幅值必须从零爬升。
-    Align_ResetStill(HAL_GetTick());      //再次安全确认必须从故障后开始。
-}
-
-/*
- * 函数功能：消费校准期间的速度帧，连续零速维持校准但不能启动运行。
- * 输入参数：speed为CRC和范围已校验的速度幅值。
- * 返回参数：返回1表示已处理，调用者不能执行普通零速硬停或运行赋值。
- */
-uint8_t Motor_AlignCommand(uint16_t speed)
-{
-    if(AlignValid != 0U){
-        return 0U;                       //正常运行仍使用原串口路径。
-    }
-    if(speed != 0U){
-        if(AlignState == ALIGN_FAILED && App.Err == E_NONE0 && SerUart3.NeedZeroRearm == 0U){
-            AlignState = ALIGN_WAIT_ZERO; //失败已被零速确认后，新启动只申请新校准，不直接出波。
-            AlignAttempt = 0U;           //只有这个新的请求才能复位本轮次数上限。
-        }
-        Ctl_HardStop(App.Err != E_NONE0 ? App.Err : E_ALIGN6); //拒绝提前启动并通知主控返回零速，绝不缓存目标速度。
-        AlignFailure = 6U;               //区分操作打断与编码器/过流失败。
-        return 1U;
-    }
-    if(App.Err != E_NONE0){
-        if(Align_SafeToStart() == 0U ||
-           (App.Err != E_ALIGN6 && Protect_CanClearFault(App.Err) == 0U)){
-            return 1U;                   //物理条件未恢复时保留原故障和关闭状态。
-        }
-        Protect_ResetCounters();         //新的零速握手仅清保护累计值，不设置AlignValid。
-        Ctl_HardStop(E_NONE0);            //故障确认时功率保持关闭。
-        if(App.Err != E_NONE0){ return 1U; } //清理边界出现新的BREAK时不发布任何零速授权。
-        SerUart3.NeedZeroRearm = (AlignState == ALIGN_FAILED) ? 0U : 1U; //失败锁存只允许后续申请校准，不能运行。
-    }
-    if(AlignState == ALIGN_FAILED){
-        return 1U;                       //已耗尽重试次数，持续零速不得再自动加力。
-    }
-    if(AlignZeroFrames < ALIGN_ZERO_FRAMES){
-        AlignZeroFrames++;               //最多记录两帧，帧的新鲜度由100ms租约保证。
-    }
-    return 1U;                           //定位中合法零速只续约，不执行普通硬停。
-}
-
-/*
- * 函数功能：结束一次未通过的尝试，最多安排一次断电后的补试。
- * 输入参数：reason为定位失败原因。
- * 返回参数：无。
- */
-static void Align_Fail(uint8_t reason)
-{
-    uint32_t primask = __get_PRIMASK();    //保护“结束输出→选择补试”免受BREAK竞争覆盖。
-    __disable_irq();
-    TIM_PWM_Stop();                       //任何判据失败先关CC、MOE及计数器。
-    AlignPower = 0.0f;
-    AlignFailure = reason;               //保留失败阶段供断点观察。
-    if(App.Err == E_NONE0 &&
-       HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == GPIO_PIN_RESET &&
-       __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) == RESET &&
-       AlignAttempt < ALIGN_MAX_ATTEMPTS){
-        AlignState = ALIGN_RETRY_OFF;     //只有单纯校验失败才允许一次补试。
-        App.Status = CTLS_WAIT;           //断电间隔不进入运行状态。
-        AlignOffTick = HAL_GetTick();     //真实关闭时间用于100ms间隔。
-        Align_ResetStill(AlignOffTick);
-    }else{
-        Ctl_HardStop(App.Err != E_NONE0 ? App.Err :
-            (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) != GPIO_PIN_RESET ||
-             __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) != RESET ? E_Hardware : E_ALIGN6)); //物理保护优先于定位失败码。
-        AlignState = ALIGN_FAILED;        //次数耗尽后持续零速只能清报警，不能重复加力。
-        AlignFailure = reason;
-    }
-    if(primask == 0U){ __enable_irq(); }  //恢复进入前的中断状态。
-}
-
-/*
- * 函数功能：在安全临界区内启动一轮B/A/B/A定位。
- * 输入参数：now为当前毫秒时间。
- * 返回参数：无。
- */
-static void Align_Begin(uint32_t now)
-{
-    uint32_t primask = __get_PRIMASK();
-    __disable_irq();                      //避免检查PB12后被硬停中断打断再重新使能PWM。
-    if(App.Err == E_NONE0 &&
-       (AlignState == ALIGN_WAIT_ZERO || AlignState == ALIGN_RETRY_OFF) && //BREAK已改变状态时不能重新发布旧的定位请求。
-       Align_SafeToStart() != 0U &&
-       __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) == RESET){
-        TIM_PWM_Stop();                   //清除可能由被BREAK打断的旧PWM服务留下的CCR，再从零使能。
-        AlignAttempt++;                  //本轮次数在出波前累计。
-        AlignState = ALIGN_B_FIRST;       //先吸合B相，不能提前清编码器。
-        AlignPhaseTick = now;
-        AlignAttemptTick = now;
-        AlignPower = 0.0f;                //每轮重新从零电压爬升。
-        AlignTableIndex = ALIGN_STEP_COUNTS; //B相正电压对应四分之一电周期。
-        Align_ResetStill(now);
-        App.Start = 0U;
-        App.AllRun = 0U;
-        App.Log.Set_Speed = 0;            //绝不携带任何待执行启动命令。
-        App.Status = CTLS_ALIGN;          //PWM服务进入独立定位输出分支。
-        TIM_PWM_Start();                 //上次关闭已清空CCR，第一次中断从零幅值建立输出。
-        HAL_TIM_Base_Start_IT(&htim1);    //PWM计数器关闭后恢复采样和定位输出中断。
-    }
-    if(primask == 0U){ __enable_irq(); }
-}
-
-/*
- * 函数功能：在最终A相保持且往返校验通过后建立零点，再关闭PWM待机。
- * 输入参数：无。
- * 返回参数：无。
- */
-static void Align_Finish(void)
-{
-    uint32_t primask = __get_PRIMASK();
-    __disable_irq();                      //零点、PWM关闭及授权状态在同一临界区发布。
-    if(App.Err == E_NONE0 && App.Status == CTLS_ALIGN &&
-       HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == GPIO_PIN_RESET &&
-       __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) == RESET){
-        TIM2->CNT = 0U;                   //仅已通过往返验证的A相位置可成为新电角度零点。
-        TIM_PWM_Stop();                   //定位结束不保持加力，编码器继续记录后续回弹。
-        if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == GPIO_PIN_RESET &&
-           __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) == RESET){
-            App.Spd.En_Cnt = 0U;
-            App.Spd.En_Cnt_Last = 0U;     //清测速基准，避免清零动作被误计为速度突变。
-            App.Spd.Now = 0.0f;
-            App.Spd.Now_Fil = 0U;
-            App.Spd.EnTime_Cnt = 1U;
-            App.Status = CTLS_WAIT;
-            AlignPower = 0.0f;
-            AlignState = ALIGN_READY;
-            AlignValid = 1U;             //最后发布有效零点；中断恢复后真实故障仍能撤销。
-            SerUart3.RxEnd = 0U;          //丢弃完成边界前的旧命令快照。
-            SerUart3.NeedZeroRearm = 1U;  //必须再收到新的零速帧，然后才能接受新的非零命令。
-            Protect_ResetCounters();
-        }else{
-            Ctl_HardStop(E_Hardware);    //关闭边界出现BREAK时不得发布定位成功。
-        }
-    }else{
-        Ctl_HardStop(App.Err != E_NONE0 ? App.Err : E_Hardware);
-    }
-    if(primask == 0U){ __enable_irq(); }
-}
-
-/*
- * 函数功能：在PWM节拍内限制定位电流并生成与编码器零点无关的A/B电压。
- * 输入参数：无。
- * 返回参数：无。
- */
-void Motor_AlignOutput(void)
-{
-    uint32_t primask;                     //仅最终输出提交使用短临界区，限流计算不阻塞中断。
-    float maximum = (float)MCPara[46] / 10.0f; //沿用现有5V上限，补试不自动提高力量。
-    float step = maximum * 1000.0f / ((float)ALIGN_RAMP_MS * PWM_FRE); //幅值约25ms从零爬到设定值。
-    float phase1 = App.Cal.Current1 >= 0.0f ? App.Cal.Current1 : -App.Cal.Current1;
-    float phase2 = App.Cal.Current2 >= 0.0f ? App.Cal.Current2 : -App.Cal.Current2;
-    if(App.Err != E_NONE0 || AlignState < ALIGN_B_FIRST || AlignState > ALIGN_A_CHECK){
-        TIM_PWM_Stop();                   //被异步故障撤销后不能再写非零定位输出。
-        return;
-    }
-    if(!(App.Adc.Current_AllTemp >= 0.0f) ||
-       App.Adc.Current_AllTemp >= App.Prot.OverCurrent ||
-       !(phase1 < ALIGN_PHASE_LIMIT_A) || !(phase2 < ALIGN_PHASE_LIMIT_A)){
-        Ctl_HardStop(E_OC1);              //任一相达1.2A或母线达原过流阈值立即硬停，不等待运行500ms计时。
-        return;
-    }
-    if(App.Adc.Current_AllTemp >= App.Prot.OverCurrent * ALIGN_BUS_LIMIT_RATIO ||
-       phase1 >= ALIGN_PHASE_SOFT_A || phase2 >= ALIGN_PHASE_SOFT_A){
-        AlignPower -= step * 2.0f;        //电流接近上限时优先降低电压，不能持续顶着阈值加力。
-        if(AlignPower < 0.0f){ AlignPower = 0.0f; }
-    }else{
-        AlignPower += step;              //允许范围内逐渐建立原定位力量。
-        if(AlignPower > maximum){ AlignPower = maximum; }
-    }
-    primask = __get_PRIMASK();
-    __disable_irq();                      //防止BREAK清CCR后，返回此处又写回非零比较值。
-    if(App.Err == E_NONE0 && App.Status == CTLS_ALIGN &&
-       HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == GPIO_PIN_RESET &&
-       __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) == RESET){
-        Set_OutPut_A(AlignPower * cos_table[AlignTableIndex], App.Cal.voltage); //相位由定位程序给定，不用未知的编码器角度。
-        Set_OutPut_B(AlignPower * sin_table[AlignTableIndex], App.Cal.voltage);
-    }else{
-        Ctl_HardStop(App.Err != E_NONE0 ? App.Err : E_Hardware); //关功率并保留先发生的保护。
-    }
-    if(primask == 0U){ __enable_irq(); }
-}
-
-/*
- * 函数功能：非阻塞推进安全等待、B/A/B/A校验、有限重试及完成待机。
- * 输入参数：无。
- * 返回参数：无。
- */
-void Motor_AlignProcess(void)
-{
-    uint32_t now = HAL_GetTick();          //独立于TIM1的毫秒节拍，关闭PWM后仍能推进等待。
-    uint32_t elapsed;
-    uint32_t primask;                     //只保护阶段发布，不将整个毫秒处理置于关中断区。
-    uint8_t state;                        //保存本次阶段，拒绝覆盖异步故障改变的状态。
-    int16_t count;
-    if(now == AlignLastTick){ return; }   //主循环重复调用不能把计时加快。
-    AlignLastTick = now;
-    if((TIM1->CR1 & TIM_CR1_CEN) == 0U){
-        Motor_UpdateSamples();           //停PWM期间用仍运行的ADC DMA刷新保护依据。
-    }
-    if(AlignValid != 0U || AlignState == ALIGN_FAILED){ return; } //正常运行和失败锁存不自动定位。
-    if(App.Err != E_NONE0 || AlignZeroFrames < ALIGN_ZERO_FRAMES ||
-       SerUart3.CommandSeen == 0U || (uint32_t)(now - SerUart3.LastValidTick) > UART_COMMAND_TIMEOUT_MS){
-        Align_ResetStill(now);           //安全窗口必须建立在持续合法的零速通信上。
-        return;                          //通信超时由原解析器硬停，不能重建启动授权。
-    }
-    if(AlignState == ALIGN_WAIT_ZERO || AlignState == ALIGN_RETRY_OFF){
-        if(__HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) != RESET){
-            Ctl_HardStop(E_Hardware);    //保留短BREAK脉冲证据，不能无报警地永远等待出波。
-            return;
-        }
-        if(Align_SafeToStart() == 0U){
-            Align_ResetStill(now);       //PB12、电压或电流恢复前保持关闭。
-            return;
-        }
-        if(AlignState == ALIGN_RETRY_OFF && (uint32_t)(now - AlignOffTick) < ALIGN_RETRY_OFF_MS){ return; }
-        if(Align_IsStill(now, ALIGN_RELEASE_MS) != 0U){
-            if(MCPara[46] == 0U || MCPara[46] > 240U || App.Prot.OverCurrent <= 0.0f){
-                AlignAttempt = ALIGN_MAX_ATTEMPTS; //无效参数不得出波或反复重试。
-                Align_Fail(5U);
-            }else{
-                Align_Begin(now);        //两帧零速加50ms连续物理静止之后才能首次出波。
-            }
-        }
-        return;
-    }
-    if(App.Status != CTLS_ALIGN){ return; } //中断硬停后主循环不得推进旧的定位阶段。
-    state = AlignState;                   //后续判断使用同一个阶段快照。
-    if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) != GPIO_PIN_RESET){
-        Ctl_HardStop(E_Hardware);
-        return;
-    }
-    if(!(App.Cal.voltage >= App.Prot.Allow_Voltage)){
-        Ctl_HardStop(E_UV2);              //定位中电压不足立即中止，不能用失去力量的位置作为零点。
-        return;
-    }
-    if(!(App.Cal.voltage <= App.Prot.OverVoltage - 1.0f)){
-        Ctl_HardStop(E_OV3);
-        return;
-    }
-    elapsed = now - AlignPhaseTick;
-    if(elapsed >= ALIGN_PHASE_MAX_MS || (uint32_t)(now - AlignAttemptTick) >= 4U * ALIGN_PHASE_MAX_MS){
-        Align_Fail(1U);                  //超时也不能清零；最多安排一次补试。
-        return;
-    }
-    if(state == ALIGN_B_FIRST){
-        AlignTableIndex = ALIGN_STEP_COUNTS; //首次B相只爬升电压，初始位置未知不直接验证位移。
-    }else{
-        uint32_t travel = elapsed < ALIGN_RAMP_MS ? elapsed : ALIGN_RAMP_MS;
-        uint16_t fraction = (uint16_t)(ALIGN_STEP_COUNTS * travel / ALIGN_RAMP_MS);
-        AlignTableIndex = state == ALIGN_B_CHECK ? fraction : ALIGN_STEP_COUNTS - fraction; //两相连续过渡，减少磁场突然跳变。
-    }
-    if(elapsed < ALIGN_RAMP_MS || AlignPower <= 0.1f){
-        Align_ResetStill(now);            //磁场尚未到位或无有效输出时不能累计末段静止。
-        return;
-    }
-    if(Align_IsStill(now, ALIGN_STABLE_MS) == 0U){ return; }
-    count = (int16_t)TIM2->CNT;            //只使用原始计数，停机路径会清除滤波速度。
-    if(state == ALIGN_A_FIRST){
-        AlignFirstA = count;             //暂存候选位置，后续仍必须验证实际可移动。
-    }else if(state == ALIGN_B_CHECK){
-        AlignDeltaForward = Align_Delta(count, AlignFirstA);
-        if(abs(AlignDeltaForward - ALIGN_ENCODER_SIGN * (int16_t)ALIGN_STEP_COUNTS) > ALIGN_STEP_TOLERANCE){
-            Align_Fail(2U);              //包括卡住、反向或移动不足。
-            return;
-        }
-        AlignCheckB = count;
-    }else if(state == ALIGN_A_CHECK){
-        AlignDeltaReturn = Align_Delta(count, AlignCheckB);
-        AlignReturnError = Align_Delta(count, AlignFirstA);
-        if(abs(AlignDeltaReturn + ALIGN_ENCODER_SIGN * (int16_t)ALIGN_STEP_COUNTS) > ALIGN_STEP_TOLERANCE){
-            Align_Fail(3U);
-            return;
-        }
-        if(abs(AlignReturnError) > ALIGN_RETURN_TOLERANCE){
-            Align_Fail(4U);              //能移动但未回到同一A位置仍不能认定零点可靠。
-            return;
-        }
-        Align_Finish();
-        return;
-    }
-    primask = __get_PRIMASK();
-    __disable_irq();                      //BREAK可随时撤销校准，不能被随后一次阶段递增覆盖。
-    if(App.Err == E_NONE0 && App.Status == CTLS_ALIGN && AlignState == state){
-        AlignState = state + 1U;          //B预定位→A候选→B检查→A检查，仅提交未被撤销的快照。
-        AlignPhaseTick = now;             //每个阶段单独限制最长加力时间。
-        Align_ResetStill(now);            //上一相静止时间不能借给下一相。
-    }
-    if(primask == 0U){ __enable_irq(); }
 }
 
 

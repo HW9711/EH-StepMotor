@@ -120,7 +120,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 	Hardware_Init();	//硬件初始化，各种打开
 	Soft_Init();			//软件初始化
-	Motor_AlignInit(); //启动非阻塞校准门禁，未验证编码器响应前保持PWM关闭。
+	Lock_Init();			//定位功能，加入爬坡
 	//使能时基定时器中断
 	HAL_TIM_Base_Start_IT(&htim1);
 	HAL_TIM_Base_Start_IT(&htim16);		//1ms
@@ -142,7 +142,6 @@ int main(void)
 		Ctl_Logic();								//逻辑
 		Protect();									//保护
 		UartDealResponse();					//串口解析函数
-		Motor_AlignProcess();                //处理新命令后推进定位，通信、保护和喂狗不被定位等待阻塞。
 		HAL_IWDG_Refresh(&hiwdg);		//喂狗
   }
   /* USER CODE END 3 */
