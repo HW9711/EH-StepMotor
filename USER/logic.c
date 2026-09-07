@@ -1,6 +1,7 @@
 #include "logic.h"
 #include "main.h"
 #include "usart.h"
+#include "tim.h" //启停提交前核对TIM1 BREAK标志，显式引用定时器句柄声明。
 #include <stdlib.h>
 #include "protect.h"
 #include "motor.h"
@@ -8,6 +9,11 @@
 MCUART_Type SerUart3;
 volatile  int text_Speed = 0;
 extern uint8_t Tx_text[5];
+/*
+ * 函数功能：结合命令、电压、故障和已验证零点建立运行条件。
+ * 输入参数：无。
+ * 返回参数：无。
+ */
 void Ctl_Logic(void){
 	//根据速度判断转向
 	if(App.Log.Set_Speed >0){
@@ -20,6 +26,8 @@ void Ctl_Logic(void){
 	if( App.Cal.voltage > App.Prot.Allow_Voltage
 		&& (abs(App.Log.Set_Speed)>MCPara[35])
 		&& App.Err == E_NONE0
+		&& AlignValid != 0U                //零速清故障不能替代定位校验，未知零点始终禁止启动。
+		&& SerUart3.NeedZeroRearm == 0U     //定位完成边界后仍需新的零速握手。
 	){
 		App.Start =1;
 	}else{
@@ -39,6 +47,12 @@ void Ctl_Logic(void){
  */
 void Ctl_HardStop(uint8_t fault_code)
 {
+	uint32_t primask = __get_PRIMASK();      //硬停状态一次发布，不能被更高优先级BREAK打断后覆盖。
+	__disable_irq();                        //仅保护寄存器与控制状态清理，不含延时或通信等待。
+	if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) != GPIO_PIN_RESET ||
+	   __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) != RESET){
+		fault_code = E_Hardware;             //硬件输入或待处理刹车标志始终优先于普通清故障。
+	}
 	App.Start = 0U;                         //先撤销启动条件，阻止状态机再次进入初始化。
 	App.AllRun = 0U;                        //先关闭高频控制计算，避免停PWM时中断继续改写CCR。
 	App.Log.Set_Speed = 0;                  //清除永久保存的目标速度，失联后不能沿用旧命令。
@@ -61,11 +75,16 @@ void Ctl_HardStop(uint8_t fault_code)
 	mcApp_Spd_PIParam.qOut = 0.0f;          //清除速度环输出缓存。
 	mcApp_Spd_PIParam.qInRef = 0.0f;        //清除速度环参考值。
 	TIM_PWM_Stop();                         //清零CCR并关闭CC、MOE和TIM1计数器。
+	if(fault_code != E_NONE0 &&
+	   (AlignValid == 0U || fault_code == E_OC1 || fault_code == E_Hardware)){
+		Motor_AlignOnFault();                //定位中故障及运行过流/BREAK撤销零点，普通零速不丢失基准。
+	}
 	App.Err = fault_code;                   //最后发布故障码，反馈帧和状态灯读取同一锁存结果。
 	App.Status = (fault_code == E_NONE0) ? CTLS_WAIT : CTLS_ERROR; //正常停机回等待，故障停机保持锁存。
 	if(fault_code != E_NONE0){
 		SerUart3.NeedZeroRearm = 1U;         //故障后拒绝直接恢复非零命令，必须先收到合法零速帧。
 	}
+	if(primask == 0U){ __enable_irq(); }    //恢复进入前状态，ISR中的调用不会提前开中断。
 }
 
 /*
@@ -163,6 +182,7 @@ static void UartCommand_CheckTimeout(void)
  */
 void UartDealResponse(void)
 {
+	uint32_t primask;                       //命令只在校验后短暂原子提交，DMA反馈仍在开中断状态执行。
 	uint8_t frame[UART_COMMAND_FRAME_SIZE];  //主循环只解析局部不可变快照。
 	uint16_t frame_length = 0U;              //记录ISR上报的真实接收长度。
 	uint8_t direction = 0U;                  //保存通过校验的方向字段。
@@ -170,14 +190,21 @@ void UartDealResponse(void)
 
 	if(UartCommand_TakeSnapshot(frame, &frame_length) != 0U){
 		if(UartCommand_IsValid(frame, frame_length, &direction, &speed) != 0U){
+			primask = __get_PRIMASK();         //防止零速清故障与校准撤销在同一帧中互相覆盖。
+			__disable_irq();                   //仅保护下面的目标/授权状态更新。
 			SerUart3.LastValidTick = HAL_GetTick(); //只有完整合法帧能够刷新通信租约。
 			SerUart3.CommandSeen = 1U;          //记录上电后已经建立有效通信。
 
-			if(speed == 0U){
+			if(Motor_AlignCommand(speed) != 0U){
+				/* 校准门禁已消费该帧：合法零速维持校准，非零请求不能被缓存为待运行目标。 */
+			}
+			else if(speed == 0U){
 				if(Protect_CanClearFault(App.Err) != 0U){
 					Protect_ResetCounters();        //安全输入恢复后清除旧保护计数，防止下一周期误复发。
 					Ctl_HardStop(E_NONE0);          //零速帧始终执行硬停，停止不依赖编码器反馈。
-					SerUart3.NeedZeroRearm = 0U;   //合法零速帧完成故障后的重新授权握手。
+					if(App.Err == E_NONE0){
+						SerUart3.NeedZeroRearm = 0U; //只有硬停确认无新BREAK时才完成零速授权。
+					}
 				}
 			}
 			else if((SerUart3.NeedZeroRearm == 0U) && (App.Err == E_NONE0)){
@@ -186,6 +213,7 @@ void UartDealResponse(void)
 					App.Log.Set_Speed = 0;          //换向时先把目标降到零，下一周期合法帧再建立反向目标。
 				}
 			}
+			if(primask == 0U){ __enable_irq(); } //发送前恢复中断，通信不能占住功率保护路径。
 			Return_Uart();                      //合法帧均返回实测速度和当前锁存故障码。
 		}
 		else{
@@ -243,6 +271,11 @@ uint16_t CRC_Calc(unsigned char *snd, unsigned char num)
 
 
 
+/*
+ * 函数功能：分发运行状态；独立定位状态不进入普通闭环初始化。
+ * 输入参数：无。
+ * 返回参数：无。
+ */
 void Motor_Ctl(void){
 	switch(App.Status){
 		case CTLS_CLOSELOOP_RUN:		//闭环
@@ -266,6 +299,8 @@ void Motor_Ctl(void){
 		case CTLS_BRAKE:			//刹车
 				Ctl_Brake();
 					break;
+		case CTLS_ALIGN:
+				break;                      //定位由主循环毫秒状态机推进，不能执行运行初始化。
 		default:
 			  Ctl_Wait();   	//空闲等待          
 					break;
@@ -283,7 +318,18 @@ void Ctl_Wait(void){
 	}
 }
 
+/*
+ * 函数功能：仅在定位有效且启动授权仍成立时初始化运行控制。
+ * 输入参数：无。
+ * 返回参数：无。
+ */
 void Ctl_Init(void){
+	uint32_t primask;                       //最后使能功率时再次原子核对授权，参数初始化本身不开功率。
+	if(AlignValid == 0U || App.Err != E_NONE0 || SerUart3.NeedZeroRearm != 0U ||
+	   App.Log.Set_Speed == 0){
+		Ctl_HardStop(App.Err);               //再次核对入口，快速启停不能越过校准或故障门禁。
+		return;
+	}
 	//编码器偏置初始化
 	App.Log.Offset_Encode_Now = 0;
 	App.Log.Offset_Encode_Set = 0;
@@ -362,19 +408,19 @@ void Ctl_Init(void){
 	//速度设定参考初始化
 	App.Spd.Set_SpdTemp = 0;
 	App.Spd.Now = 0;
-	//参数初始化完成，跳转开环
-	TIM_PWM_Start();
-	if(MCPara[2] == 0){
-		App.Status = CTLS_OPENLOOP_RUN;
+	primask = __get_PRIMASK();              //参数计算期间若发生BREAK，最终提交必须拒绝启动。
+	__disable_irq();                        //避免检查通过后硬停，再从此处重新打开PWM。
+	if(AlignValid != 0U && App.Err == E_NONE0 && SerUart3.NeedZeroRearm == 0U &&
+	   App.Log.Set_Speed != 0 && HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == GPIO_PIN_RESET &&
+	   __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) == RESET){
+		TIM_PWM_Stop();                      //重新启动不继承旧CCR，编码器计数不清零。
+		App.Status = MCPara[2] == 0U ? CTLS_OPENLOOP_RUN : CTLS_CLOSELOOP_RUN; //沿用原开闭环选择。
+		App.AllRun = 1U;                     //仅有效零点和新启动命令能获得高频运行授权。
+		TIM_PWM_Start();                     //临界区内最后开启功率，BREAK仍由硬件直接关闭MOE。
+	}else{
+		Ctl_HardStop(App.Err);               //失去授权时保持关闭，不能继续使用旧启动状态。
 	}
-	else if(MCPara[2] == 1){
-		App.Status = CTLS_CLOSELOOP_RUN;
-	}
-		App.AllRun = 1;
-	
-	if(App.Err > 0){
-		App.Status = CTLS_ERROR; 
-	}
+	if(primask == 0U){ __enable_irq(); }
 }
 
 
