@@ -41,7 +41,7 @@ void Ctl_Logic(void){
 
 
 /*
- * 函数功能：立即撤销全部运动授权并关闭四路PWM，故障停机不等待编码器速度下降。
+ * 函数功能：立即撤销运动授权并关闭四路PWM；保留已验证的编码器基准，故障后仍须零速重新授权。
  * 输入参数：fault_code为需要锁存的故障码，E_NONE0表示正常零速停机。
  * 返回参数：无。
  */
@@ -75,9 +75,8 @@ void Ctl_HardStop(uint8_t fault_code)
 	mcApp_Spd_PIParam.qOut = 0.0f;          //清除速度环输出缓存。
 	mcApp_Spd_PIParam.qInRef = 0.0f;        //清除速度环参考值。
 	TIM_PWM_Stop();                         //清零CCR并关闭CC、MOE和TIM1计数器。
-	if(fault_code != E_NONE0 &&
-	   (AlignValid == 0U || fault_code == E_OC1 || fault_code == E_Hardware)){
-		Motor_AlignOnFault();                //定位中故障及运行过流/BREAK撤销零点，普通零速不丢失基准。
+	if(fault_code != E_NONE0 && AlignValid == 0U){ //仅未通过校准时撤销本轮定位；运行过流或BREAK本身不等于编码器基准丢失。
+		Motor_AlignOnFault(fault_code);      //功率已关闭后保存真实保护码；已验证运行基准不进入该分支。
 	}
 	App.Err = fault_code;                   //最后发布故障码，反馈帧和状态灯读取同一锁存结果。
 	App.Status = (fault_code == E_NONE0) ? CTLS_WAIT : CTLS_ERROR; //正常停机回等待，故障停机保持锁存。
@@ -124,7 +123,7 @@ static uint8_t UartCommand_TakeSnapshot(uint8_t *frame, uint16_t *length)
 }
 
 /*
- * 函数功能：严格校验一帧泵控制命令，坏帧不得改变速度或刷新通信租约。
+ * 函数功能：严格校验普通速度帧或独立零速重定位/取消帧，坏帧不得改变速度或刷新通信租约。
  * 输入参数：frame为封存帧，length为真实长度，direction和speed返回已校验字段。
  * 返回参数：帧头、长度、CRC、方向和速度范围全部合法返回1，否则返回0。
  */
@@ -142,8 +141,8 @@ static uint8_t UartCommand_IsValid(const uint8_t *frame,
 	if((length != UART_COMMAND_FRAME_SIZE) || (frame[0] != 0xAAU)){
 		return 0U;                             //短帧、长帧和错误帧头全部丢弃，禁止复用旧尾部。
 	}
-	if(frame[1] > 1U){
-		return 0U;                             //方向只能为0或1，非法方向不能保留旧目标继续运行。
+	if(frame[1] > 1U && frame[1] != ALIGN_COMMAND_RESTART && frame[1] != ALIGN_COMMAND_CANCEL){
+		return 0U;                             //只允许明确的重定位和取消操作码，其它未知控制值仍非法。
 	}
 	received_crc = (uint16_t)frame[4] | ((uint16_t)frame[5] << 8U); //协议CRC按低字节、高字节发送。
 	calc_crc = CRC_Calc((unsigned char *)frame, 4U); //只校验帧头、方向和速度两个字节。
@@ -151,6 +150,9 @@ static uint8_t UartCommand_IsValid(const uint8_t *frame,
 		return 0U;                             //生产协议不再接受BB AA测试尾旁路。
 	}
 	*speed = ((uint16_t)frame[2] << 8U) | (uint16_t)frame[3]; //先按无符号16位组合速度幅值。
+	if(frame[1] > 1U && *speed != 0U){
+		return 0U;                             //独立重定位和取消帧均不能携带运行速度，也不能借坏控制帧刷新租约。
+	}
 	if(*speed > UART_COMMAND_MAX_SPEED_RPM){
 		return 0U;                             //超过当前整机630最大合法值时直接拒绝，不能只在输出端饱和。
 	}
@@ -195,7 +197,13 @@ void UartDealResponse(void)
 			SerUart3.LastValidTick = HAL_GetTick(); //只有完整合法帧能够刷新通信租约。
 			SerUart3.CommandSeen = 1U;          //记录上电后已经建立有效通信。
 
-			if(Motor_AlignCommand(speed) != 0U){
+			if(direction == ALIGN_COMMAND_CANCEL){
+				Motor_AlignCancel();             //明确全停先关功率再锁住未完成定位，不能被普通零速续约重新加力。
+			}
+			else if(direction == ALIGN_COMMAND_RESTART){
+				(void)Motor_AlignRequest();      //只申请有界校准；BUSY/READY和保护未恢复时均不能重置次数或启动运行。
+			}
+			else if(Motor_AlignCommand(speed) != 0U){
 				/* 校准门禁已消费该帧：合法零速维持校准，非零请求不能被缓存为待运行目标。 */
 			}
 			else if(speed == 0U){
@@ -224,16 +232,23 @@ void UartDealResponse(void)
 	UartCommand_CheckTimeout();              //无论本周期是否收到数据都执行命令年龄检查。
 }
 
-//返回数据
+/*
+ * 函数功能：原子复制实测速度、方向及版本化定位/故障状态，再发送固定7字节CRC回包。
+ * 输入参数：无。
+ * 返回参数：无。
+ */
 void Return_Uart(void){
+	uint32_t primask = __get_PRIMASK(); //仅快照字段处于临界区，CRC与DMA发送不阻塞保护中断。
 	uint16_t TxCRC = 0;
 	uint8_t	 TxCRCL= 0;
 	uint8_t	 TxCRCH= 0;
+	__disable_irq();                    //防止已就绪状态和保护码分别来自故障前后两次状态。
 	SerUart3.T_DATA[0] = 0xAA;		//帧头
 	SerUart3.T_DATA[1] = App.Spd.En_Dir;	//方向		0正转，1反转
 	SerUart3.T_DATA[2] = (App.Spd.Now_Fil&0xFF00)/256;	
 	SerUart3.T_DATA[3] = (uint8_t)(App.Spd.Now_Fil & 0x00FFU);	//低字节必须按256取值，不能使用模255。
-	SerUart3.T_DATA[4] = App.Err;		//错误码返回
+	SerUart3.T_DATA[4] = Motor_AlignFeedback(); //高半字节表示定位就绪状态，低半字节保持原保护码。
+	if(primask == 0U){ __enable_irq(); } //快照完成即恢复中断，真正保护仍可立即切断PWM。
 	TxCRC = CRC_Calc(SerUart3.T_DATA,5);
 	TxCRCH = (uint8_t)((TxCRC & 0xFF00)>>8);
 	TxCRCL = (uint8_t)(TxCRC & 0x00FF);

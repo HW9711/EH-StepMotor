@@ -5,6 +5,7 @@
 #include "logic.h"
 #include "protect.h"
 #include <stdlib.h> //¶¨Î»Ğ£ÑéÓÃÓĞ·ûºÅÎ»ÒÆ¾ø¶ÔÖµ£¬²»ÒÀÀµÂË²¨×ªËÙ¡£
+#include <float.h> //Õï¶ÏÖ»±£ÁôÓĞÏŞµçÁ÷/µçÑ¹Ñù±¾£¬²»½«NaN»òÎŞÇîÖµ×÷ÎªÓĞĞ§¼ÇÂ¼¡£
 
 extern MCUART_Type SerUart3;
 volatile uint16_t MCPara[ParaNum] ={0};
@@ -18,7 +19,7 @@ uint16_t SMCPara[ParaNum] = {
 	100,	// -3  »ı·ÖÏŞ·ù				
 	24,		// -4  Êä³öÏŞ·ù
 	
-	300,		// -5  ¼æÈİ±£Áô¾É¶¨Î»±£³ÖÊ±¼ä£»ĞÂĞ£×¼Ê±ÏŞÓÉmotor.hµÄALIGNºê¿ØÖÆ¡£
+	300,		// -5 Âú·ùºóµÄÂıÏìÓ¦¹Û²ìÔ¤Ëã£¬µ¥Î»ms£»ÎÈ¶¨100msÇÒÎ»ÒÆºÏ¸ñ¿ÉÌáÇ°½áÊø£¬Î´µ½Î»ÈÔ°´Ô­300ms¹Û²ì¡£
 	
 	1,		// -6  ¿ª»·µç»úÔË¶¯·½Ïò			0 Õı×ª					1 ·´×ª??ssc 1-0
 	
@@ -37,8 +38,8 @@ uint16_t SMCPara[ParaNum] = {
 	0,		// -16 DÖáKI			±¶ÂÊ1000
 	
 	//QÖáPI
-	13,		// -17 QÖáPIÊä³ö×î´óÖµ
-	13,		// -18 QÖáPIÊä³ö×îĞ¡Öµ£¨-£©
+	14,		// -17 QÖáÊä³öÉÏÏŞ£¬µ¥Î»V£»ÓÉ13ÉıÖÁ14Ôö¼ÓÖØÔØÔËĞĞÊä³öÓàÁ¿£¬ĞèÊµ²âÏàµçÁ÷ÓëÎÂÉı¡£
+	14,		// -18 QÖá¸ºÏòÊä³öÏŞ·ùµÄ¾ø¶ÔÖµ£¬µ¥Î»V£»Óë²ÎÊı17Í¬Îª14£¬Õı·´×ªÔöÁ¦Ò»ÖÂÇÒ²»¸ÄÄ¸Ïß¹ıÁ÷±£»¤¡£
 	100,	// -19 QÖáKp			±¶ÂÊ1000
 	0,		// -20 QÖáKI			±¶ÂÊ1000
 	
@@ -80,7 +81,7 @@ uint16_t SMCPara[ParaNum] = {
 	
 	100,		// -44 ¼æÈİ±£Áô¾ÉÆô¶¯¶¨Î»Ê±¼ä£»ÒÑÑéÖ¤ÁãµãµÄÆÕÍ¨ÆôÍ£²»ÖØ¸´¶¨Î»¡£
 	4,			// -45 ±àÂëÆ÷Æ«ÖÃ±ä»¯ÅÀÆÂÖÜÆÚ
-	50,			// -46 ¿ª»úÆô¶¯¶¨Î»µÄÁ¦Á¿	/10			-130
+	55,			// -46 ¶¨Î»µçÑ¹£¬µ¥Î»0.1V£»ÓÉ50ÉıÖÁ55¼´5.5V£¬Ê×ÂÖºÍ²¹ÊÔÍ¬·ù£¬Ğè°´µç»ú¶î¶¨ÏàµçÁ÷ÑéÊÕ¡£
 	
 	200,		// -47 Í£»ú×ªËÙ
 	
@@ -88,8 +89,8 @@ uint16_t SMCPara[ParaNum] = {
 	5,		// -49 ¼õËÙ¶È-ËÙ¶ÈÏòÏÂÅÀÆÂÖµ			-4
 	20,		// -50 ÅÀÆÂÖÜÆÚ-ËÙ¶ÈÅÀÆÂ¼ÆËãÖÜÆÚ		-10
 	
-	1,		// -51 ¼æÈİ±£Áô¾É¶¨Î»ÅÀÆÂÖµ£»ĞÂĞ£×¼°´ALIGN_RAMP_MS¼°ÏàµçÁ÷ÏŞÁ÷¡£
-	500,		// -52 ¼æÈİ±£Áô¾É×èÈûÑ­»·´ÎÊı£»ĞÂĞ£×¼²»Ö´ĞĞ¸ÃÑ­»·¡£
+	1,		// -51 Ô­¶¨Î»Ã¿²½ÑÓÊ±£¬µ¥Î»ms£»Óë²ÎÊı52Ïà³ËµÃµ½·Ç×èÈûÅÀÉıÊ±³¤¡£
+	500,		// -52 Ô­¶¨Î»ÅÀÉı²½Êı£»Óë²ÎÊı51×é³ÉÄ¬ÈÏ500msÅÀÉı£¬²»ÔÙ×èÈûÑ­»·¡£
 	
 	
 	0,			//-53	 ½ûÖ¹¹ÊÕÏ×Ô¶¯¸´×ª£»¹ÊÕÏºó±ØĞëÏÈÊÕµ½ºÏ·¨ÁãËÙÖ¡ÖØĞÂÊÚÈ¨¡£
@@ -206,16 +207,30 @@ volatile uint8_t AlignFailure = 0U;        //±£´æ×î½üÊ§°ÜÔ­Òò£¬ÖØÊÔ³É¹¦ºóÒ²±£Áô¹
 volatile int16_t AlignDeltaForward = 0;    //AÏòBµÄÎ»ÒÆ¹Û²â¡£
 volatile int16_t AlignDeltaReturn = 0;     //BÏòAµÄÎ»ÒÆ¹Û²â¡£
 volatile int16_t AlignReturnError = 0;     //Ç°ºóAÎ»ÖÃÖØ¸´ĞÔ¹Û²â¡£
-volatile float AlignPower = 0.0f;          //PWM½ÚÅÄÖğ½¥½¨Á¢µÄÊµ¼ÊµçÑ¹·ùÖµ¡£
-static uint8_t AlignZeroFrames = 0U;       //Á¬ĞøÁãËÙÖ¡¼ÆÊı£¬·ÇÁãÃüÁî»ò¹ÊÕÏ½«ÆäÇåÁã¡£
+volatile float AlignPower = 0.0f;          //°´ÕæÊµºÁÃëÅÀÉı¡¢ÓÉPWM·şÎñÌá½»µÄ¶¨Î»µçÑ¹·ùÖµ¡£
+volatile MotorAlignFailureSnapshot AlignFirstFailure = {0}; //Ê×¸öÊ§°Ü·¢²¼ºó±£Áô£¬Ö±µ½Ã÷È·¿ªÊ¼ĞÂÒ»ÂÖ¶¨Î»¡£
+volatile MotorAlignSuccessSnapshot AlignLastSuccess = {0}; //ÍêÕûÁù½×¶ÎÍ¨¹ıºó·¢²¼£¬±£Áô³É¹¦Ê±Êµ¼ÊÎ»ÖÃ¼°ÎÈ¶¨ÖÊÁ¿¡£
+static MotorAlignSuccessSnapshot AlignCandidate = {0}; //Ö»ÊÕ¼¯µ±Ç°³¢ÊÔµÄºòÑ¡£¬Î´Í¨¹ıÈ«²¿ÅĞ¾İ²»ÄÜ×÷ÎªÒÑÑéÖ¤Áãµã¡£
+volatile uint16_t AlignRejectedStarts = 0U; //ÆÕÍ¨Æô¶¯¾Ü¾øÖ»ÀÛ¼Æ´ÎÊı£¬²»ÆÆ»µ¶¨Î»»ò¸²¸ÇÊ×´ÎÔ­Òò¡£
+static float AlignSampleA = 0.0f;          //±£´æµ±Ç°³¢ÊÔ×î½üÒ»´ÎÓĞĞ§AÏà²ÉÑù£¬²»ÓÃÓÚµçÁ÷±Õ»·¡£
+static float AlignSampleB = 0.0f;          //±£´æÓëAÏàÍ¬Ò»Ìá½»ÖÜÆÚµÄBÏà²ÉÑù¡£
+static float AlignSampleVoltage = 0.0f;    //±£´æÍ¬Ò»ÖÜÆÚµÄÄ¸ÏßµçÑ¹¡£
+static uint32_t AlignSampleTick = 0U;      //¼ÇÂ¼×î½üÓĞĞ§Ñù±¾Ê±¼ä£¬¹©Ê§Ğ§Ñù±¾ºóµÄ¹ÊÕÏÅÅ²é¡£
+static uint8_t AlignSampleValid = 0U;      //ĞÂ½×¶Î³ö²¨Ç°ÇåÁã£¬±ÜÃâ½«ÉÏÒ»½×¶Î²ÉÑùµ±³É±¾½×¶Î½á¹û¡£
+static uint8_t AlignZeroFrames = 0U;       //°²È«ÁãËÙÊÚÈ¨¼ÆÊı£»¹ÊÕÏ»òĞÂĞ£×¼ÇåÁã£¬Ã¦Ê±·ÇÁã¾Ü¾ø²»³·ÏúÓĞ½çĞ£×¼¡£
 static uint32_t AlignLastTick = 0U;        //±£Ö¤Ö÷Ñ­»·Ö»ÔÚºÁÃë¸Ä±äºóÍÆ½øÒ»´Î¡£
 static uint32_t AlignPhaseTick = 0U;       //µ±Ç°½×¶ÎµÄÕæÊµ¿ªÊ¼Ê±¼ä¡£
 static uint32_t AlignAttemptTick = 0U;     //µ¥ÂÖ¼ÓÁ¦µÄ×Ü³¬Ê±»ù×¼¡£
 static uint32_t AlignOffTick = 0U;         //ÂÖ¼ä¹Ø±ÕPWMµÄÆğµã¡£
 static uint32_t AlignStillTick = 0U;       //¹Ì¶¨±àÂëÆ÷²Î¿¼´°¿Ú¿ªÊ¼Ê±¼ä¡£
 static int16_t AlignStillAnchor = 0;       //·ÀÖ¹Ã¿ºÁÃë»ºÂıÅÀ¶¯±»Îóµ±¾²Ö¹¡£
+static int16_t AlignStillMin = 0;          //Ä©¶Î´°¿ÚÏà¶ÔÃªµãµÄ×îĞ¡Î»ÒÆ£¬ÓÃÓÚÕûÌå·å·åÖµ¶ø·ÇÏàÁÚ²ÉÑùÅĞ¶Ï¡£
+static int16_t AlignStillMax = 0;          //Ä©¶Î´°¿ÚÏà¶ÔÃªµãµÄ×î´óÎ»ÒÆ£¬»ºÂıÀÛ»ı»òÍù¸´°Ú¶¯¾ù¼ÆÈëÖÊÁ¿¡£
+static int16_t AlignFirstB = 0;            //µÚÒ»´ÎÕıBÎ»ÖÃ£¬Ê×¶ÎBµ½AÒ²±ØĞë¼ì²é·½ÏòºÍ¾àÀë¡£
 static int16_t AlignFirstA = 0;            //µÚÒ»´ÎAÏà¶¨Î»µÄºòÑ¡¼ÆÊı£¬ÉĞÎ´Ğ´ÈëÁãµã¡£
 static int16_t AlignCheckB = 0;            //Ğ£ÑéBÏàµ½´ïºóµÄ¼ÆÊı¡£
+static int16_t AlignSecondA = 0;           //µÚ¶ş´ÎÍ¬²à·µ»ØAµÄÎ»ÖÃ£¬ºóĞøÓëÁíÒ»²à·µ»Ø½á¹û½»²æ±È½Ï¡£
+static int16_t AlignOppositeB = 0;          //·´BÏàµ½Î»Î»ÖÃ£¬×îÖÕA±ØĞë´Ó´Ë´¦ÕıÏò·µ»Ø¶ø·ÇÖØ¸´Í¬²àÎüºÏ¡£
 static volatile uint16_t AlignTableIndex = ALIGN_STEP_COUNTS; //¾²Ö¹×ø±ê´Å³¡·½Ïò£¬²»ÄÜÊ¹ÓÃÎ´¾­Ğ£×¼µÄ±àÂëÆ÷½Ç¶È¡£
 
 /*
@@ -235,6 +250,35 @@ static int16_t Align_Delta(int16_t now, int16_t before)
 }
 
 /*
+ * º¯Êı¹¦ÄÜ£ºPWM¹Ø±ÕºóËø´æ±¾ÊÚÈ¨ÂÖÊ×´ÎÊ§°Ü£¬±ÜÃâ²¹ÊÔ»òºóĞøÆô¶¯¾Ü¾ø¸²¸ÇÔ­Ê¼Ö¤¾İ¡£
+ * ÊäÈë²ÎÊı£ºreasonÎª¶¨Î»ÅĞ¾İÔ­Òò£¬fault_codeÎª±¾´ÎÔ­Ê¼±£»¤»ò¶¨Î»¹ÊÕÏÂë£»µ÷ÓÃ·½ĞëÒÑ¹ØPWM²¢´¦ÓÚÁÙ½çÇø¡£
+ * ·µ»Ø²ÎÊı£ºÎŞ¡£
+ */
+static void Align_LatchFailure(uint8_t reason, uint8_t fault_code)
+{
+    uint32_t now;                         //Ö»ÓĞÉĞÎ´±£´æÊ×´ÎÊ§°ÜÊ±²Å¶ÁÈ¡Ê±¼ä£¬¼õÉÙ±£»¤Â·¾¶¹¤×÷Á¿¡£
+    if(AlignFirstFailure.valid != 0U){ return; } //×Ô¶¯²¹ÊÔºÍÖØ¸´±£»¤²»ÄÜÌæ»»±¾ÂÖÊ×¸öÊ§°Ü¡£
+    now = HAL_GetTick();                  //¹Ø¹¦ÂÊÖ®ºó²Å²É¼¯Õï¶ÏÊ±¼ä£¬²»ÑÓ³ÙÓ²Í£¼Ä´æÆ÷²Ù×÷¡£
+    AlignFirstFailure.tick_ms = now;     //±£´æÓëÏàÎ»³¬Ê±¿É¶ÔÕÕµÄ¹ÊÕÏÊ±¿Ì¡£
+    AlignFirstFailure.phase_elapsed_ms = (AlignState >= ALIGN_B_FIRST && AlignState <= ALIGN_A_VERIFY) ? now - AlignPhaseTick : 0U; //Áù¸ö¼ÓÁ¦½×¶Î¾ù¼ÇÂ¼ÕæÊµÊ±³¤£¬Î´¼ÓÁ¦½×¶Î¼Ç0¡£
+    AlignFirstFailure.state = AlignState; //ÔÚFAILED¸²¸ÇÇ°¼ÇÂ¼ÕæÊµÊ§°Ü½×¶Î¡£
+    AlignFirstFailure.attempt = AlignAttempt; //±£ÁôÊ×¸öÊ§°ÜÊôÓÚÄÄ´Î³¢ÊÔ¡£
+    AlignFirstFailure.reason = reason;   //¼¸ºÎÅĞ¾İºÍ±£»¤Âë·Ö¿ª£¬±ÜÃâ°ÑËùÓĞÊ§°ÜÍ³³Æ¹ıÁ÷¡£
+    AlignFirstFailure.raw_error = fault_code; //¼ÇÂ¼Ó²Í£×îÖÕ²ÉÓÃµÄ±£»¤Âë£¬¶ø·ÇÉĞÎ´·¢²¼µÄApp.Err¾ÉÖµ¡£
+    AlignFirstFailure.encoder_count = (int16_t)TIM2->CNT; //²»ÇåÁã±àÂëÆ÷£¬Ö»±£ÁôÍ£»úÎ»ÖÃ¡£
+    AlignFirstFailure.delta_forward = AlignDeltaForward; //¸´ÖÆµ±Ç°È¥³Ì²âÁ¿£¬½×¶Î×Ö¶ÎËµÃ÷ÆäÓĞĞ§·¶Î§¡£
+    AlignFirstFailure.delta_return = AlignDeltaReturn; //¸´ÖÆµ±Ç°»Ø³Ì²âÁ¿£¬²»½èÓÃ²¹ÊÔºóµÄÊıÖµ¡£
+    AlignFirstFailure.return_error = AlignReturnError; //¸´ÖÆÁ½´ÎAÏàÖØ¸´ĞÔÎó²î¡£
+    AlignFirstFailure.current_a = AlignSampleA; //±£Áô×î½üÓĞÏŞÖµAÏà²ÉÑù£¬²»ÄÜ¾İ´Ë×Ô¶¯ÉıÑ¹¡£
+    AlignFirstFailure.current_b = AlignSampleB; //±£ÁôÍ¬Ò»²ÉÑùÖÜÆÚBÏàÖµ¡£
+    AlignFirstFailure.bus_voltage = AlignSampleVoltage; //±£ÁôÍ¬ÖÜÆÚÄ¸ÏßµçÑ¹¡£
+    AlignFirstFailure.sample_tick_ms = AlignSampleTick; //±£ÁôÑù±¾ĞÂ¾ÉĞÅÏ¢£¬ÔÊĞíÅĞ±ğ¹ÊÕÏºóµÄ²ÉÑùÊ§Ğ§¡£
+    AlignFirstFailure.sample_valid = AlignSampleValid; //Ñù±¾²»´æÔÚÊ±µ÷ÓÃ·½²»µÃÊ¹ÓÃ¾ÉµçÁ÷ÊıÖµ¡£
+    __DMB();                              //ÏÈÌá½»ËùÓĞÕï¶Ï×Ö¶Î£¬ÔÙ·¢²¼¿É¶Á±êÖ¾¡£
+    AlignFirstFailure.valid = 1U;         //¸Ã±êÖ¾Ö»ÔÚÏÂÒ»´ÎÃ÷È·¶¨Î»ÊÚÈ¨Ê±Çå³ı¡£
+}
+
+/*
  * º¯Êı¹¦ÄÜ£ºÖØĞÂ¿ªÊ¼Ò»¸öÔ­Ê¼±àÂëÆ÷ÎÈ¶¨´°¿Ú¡£
  * ÊäÈë²ÎÊı£ºnowÎªµ±Ç°ºÁÃëÊ±¼ä¡£
  * ·µ»Ø²ÎÊı£ºÎŞ¡£
@@ -243,6 +287,8 @@ static void Align_ResetStill(uint32_t now)
 {
     AlignStillAnchor = (int16_t)TIM2->CNT; //¹Ì¶¨²Î¿¼¶ø·ÇÏàÁÚÁ½µã±È½Ï£¬»ºÂı»¬¶¯Ò²»á±»·¢ÏÖ¡£
     AlignStillTick = now;                 //´°¿Ú²»¼Ì³ĞÉÏÒ»ÏàµÄÎÈ¶¨Ê±¼ä¡£
+    AlignStillMin = 0;                    //ĞÂ´°¿Ú¶ªÆú¾ÉµÄ×îĞ¡Î»ÒÆ£¬²»ÄÜ¿çÏàÎ»¸´ÓÃÎÈ¶¨ÖÊÁ¿¡£
+    AlignStillMax = 0;                    //ĞÂ´°¿Ú´Óµ±Ç°¼ÆÊı¿ªÊ¼ÀÛ¼ÆÍêÕû°Ú·ù¡£
 }
 
 /*
@@ -259,6 +305,44 @@ static uint8_t Align_IsStill(uint32_t now, uint32_t duration)
 }
 
 /*
+ * º¯Êı¹¦ÄÜ£ºÖ»¶Ô¼ÓÁ¦Ä©¶Î¼ì²éÁ¬Ğø100msµÄÕûÌåÎ»ÖÃÖÊÁ¿£¬µÈ´ı/²¹ÊÔµÄÔ­¾²Ö¹ÃÅ½û²»±ä¡£
+ * ÊäÈë²ÎÊı£ºnowÎªµ±Ç°ºÁÃëÊ±¼ä¡£
+ * ·µ»Ø²ÎÊı£ºÕû¸öÎÈ¶¨´°¿Ú·å·åÖµºÏ¸ñÇÒÊ±³¤×ã¹»·µ»Ø1£¬·ñÔòÖØĞÂ¹Û²ìÇÒ²»ÑÓ³¤½×¶Î½ØÖ¹¡£
+ */
+static uint8_t Align_IsSettled(uint32_t now)
+{
+    int16_t delta = Align_Delta((int16_t)TIM2->CNT, AlignStillAnchor); //°´ÕæÊµ4000ÖÜÆÚ±È½Ï¹Ì¶¨Ãªµã£¬¿çÁã²»ÄÜÎóÅĞÌø±ä¡£
+    if(delta < AlignStillMin){ AlignStillMin = delta; } //±£Áô´°¿ÚÄÚ×îµÍµã£¬Íù¸´·µ»ØÃªµãÒ²²»ÄÜÄ¨µô°Ú¶¯¡£
+    if(delta > AlignStillMax){ AlignStillMax = delta; } //±£Áô´°¿ÚÄÚ×î¸ßµã£¬Á¬ĞøÎ¢Ğ¡ÅÀ¶¯»áÀÛ»ı³É³¬ÏŞ¡£
+    if((int32_t)AlignStillMax - AlignStillMin > ALIGN_QUALITY_SPAN_COUNTS){
+        Align_ResetStill(now);            //³¬¹ı1¼ÆÊı·å·åÖµºó´Óµ±Ç°µãÖØ¼Æ100ms£¬²»½ÓÊÜ×îºó¶ÌÔİ¾²Ö¹¡£
+        return 0U;                       //±¾ÖÜÆÚ²»ÄÜ¼ÇÂ¼ºòÑ¡Î»ÖÃ£¬Ô­ÏàÎ»×î´óÊ±ÏŞÈÔ¼ÌĞø¼ÆÊ±¡£
+    }
+    return ((uint32_t)(now - AlignStillTick) >= ALIGN_STABLE_MS) ? 1U : 0U; //Ö»·µ»Ø¹Û²â½á¹û£¬²»ÉèÖÃÁãµã»òÔËĞĞÊÚÈ¨¡£
+}
+
+/*
+ * º¯Êı¹¦ÄÜ£º±£´æÒÑÍ¨¹ı±¾½×¶ÎÅĞ¾İµÄºòÑ¡Êı¾İ£¬µ÷ÓÃ·½ĞëÔÚ½×¶ÎÌá½»ÁÙ½çÇøÄÚ¡£
+ * ÊäÈë²ÎÊı£ºindexÎªÁù½×¶ÎÊı×éÏÂ±ê£¬countÎª±¾´ÎÒÑ¼ì²éµÄÔ­Ê¼Î»ÖÃ£¬nowÎªµ±Ç°ºÁÃëÊ±¼ä¡£
+ * ·µ»Ø²ÎÊı£ºÎŞ£¬ºòÑ¡½ö¹©È«²¿½×¶ÎÍ¨¹ıºóµÄ³É¹¦¿ìÕÕÊ¹ÓÃ¡£
+ */
+static void Align_RecordPhase(uint8_t index, int16_t count, uint32_t now)
+{
+    uint32_t stable_ms = now - AlignStillTick; //¼ÇÂ¼ÕæÊµÁ¬ĞøÎÈ¶¨³¤¶È£¬²»ÄÜÓÃ¹Ì¶¨±£³ÖÊ±¼ä´úÌæ¡£
+    AlignCandidate.encoder_count[index] = count; //±£ÁôÇåÁãÇ°µÄÁù¸öÔ­Ê¼Î»ÖÃ£¬±ãÓÚºË¶ÔÁ½²àÆ«²î¡£
+    AlignCandidate.stable_ms[index] = (stable_ms > 0xFFFFU) ? 0xFFFFU : (uint16_t)stable_ms; //³¤Ê±¼ä²ÎÊıÓÃ±¥ºÍÖµ¼ÇÂ¼£¬±ÜÃâÕï¶Ï»ØÈÆ¡£
+    AlignCandidate.swing_counts[index] = (uint16_t)(AlignStillMax - AlignStillMin); //±£ÁôÊµ¼Ê·å·åÖµ£¬Ã÷È·ÎªºÎÍ¨¹ıÎÈ¶¨ÅĞ¾İ¡£
+    AlignCandidate.current_a[index] = AlignSampleA; //ÁÙ½çÇøÄÚÓëÆäÓàÑù±¾Ò»Æğ¸´ÖÆ£¬²»¶ÁÈ¡°ë¸üĞÂµçÁ÷¡£
+    AlignCandidate.current_b[index] = AlignSampleB; //±£³Ö·´BÏàµçÁ÷·ûºÅ£¬Õï¶Ï²»¸Ä±äÔ­µçÁ÷±£»¤¡£
+    AlignCandidate.bus_voltage[index] = AlignSampleVoltage; //±£´æÍ¬ÖÜÆÚÄ¸ÏßÑù±¾£¬²»¾İ´ËÍÆ¶ÏÊµ¼Ê×ª¾Ø¡£
+    AlignCandidate.sample_tick_ms[index] = AlignSampleTick; //×î½üÓĞÏŞÖµ¿ÉÄÜÔçÓÚ±¾½×¶ÎÄ©¶Ë£¬±ØĞëÍ¬Ê±¸ø³öÊ±¿Ì¡£
+    if(AlignSampleValid != 0U){
+        AlignCandidate.sample_valid_mask |= (uint8_t)(1U << index); //ÓĞÑù±¾²ÅÖÃÎ»£¬Î´ÖÃÎ»×Ö¶Î²»µÃµ±×÷ÓĞĞ§²âÁ¿¡£
+    }
+    AlignCandidate.phase_mask |= (uint8_t)(1U << index); //ÏÈĞ´È«²¿×Ö¶ÎÔÙ±ê¼Ç¸Ã½×¶ÎÒÑ¾­ÍêÕûÊÕ¼¯¡£
+}
+
+/*
  * º¯Êı¹¦ÄÜ£ºÅĞ¶Ï¹Ø±ÕPWMºóµÄµçÑ¹¡¢µçÁ÷ºÍÓ²¼şÊäÈëÊÇ·ñÔÊĞí¶¨Î»¡£
  * ÊäÈë²ÎÊı£ºÎŞ¡£
  * ·µ»Ø²ÎÊı£ºËùÓĞÎïÀíÌõ¼şÂú×ã·µ»Ø1£¬·ñÔò·µ»Ø0¡£
@@ -268,10 +352,8 @@ static uint8_t Align_SafeToStart(void)
     return (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == GPIO_PIN_RESET &&
             App.Cal.voltage >= App.Prot.Allow_Voltage &&
             App.Cal.voltage <= App.Prot.OverVoltage - 1.0f &&
-            App.Adc.Current_AllTemp >= 0.0f &&
-            App.Cal.Current1 > -ALIGN_PHASE_SOFT_A && App.Cal.Current1 < ALIGN_PHASE_SOFT_A &&
-            App.Cal.Current2 > -ALIGN_PHASE_SOFT_A && App.Cal.Current2 < ALIGN_PHASE_SOFT_A && //¹ØPWMºóÏàµçÁ÷Ò²±ØĞë»ØÂä£¬²»ÄÜÖ»¿´Ä¸Ïß¡£
-            App.Adc.Current_AllTemp <= App.Prot.OverCurrent * ALIGN_BUS_LIMIT_RATIO) ? 1U : 0U; //¸¡µã±È½ÏÒ²»á¾Ü¾øNaN¡£
+            App.Cal.CurrentT >= 0.0f &&   //ÈÔ¾Ü¾øÎŞĞ§Ä¸Ïß²ÉÑù£¬²»°ÑÎ´ÖªµçÁ÷×´Ì¬×÷ÎªÖØĞÂ¼ÓÁ¦Ìõ¼ş¡£
+            Protect_CanClearFault(E_OC1) != 0U) ? 1U : 0U; //¸´ÓÃÔ­Ä¸Ïß¹ıÁ÷»Ö¸´»Ø²î£¬²»ĞÂÔö¶ÀÁ¢ÏàµçÁ÷ÃÅ¼÷¡£
 }
 
 /*
@@ -286,6 +368,11 @@ void Motor_AlignInit(void)
     AlignAttempt = 0U;                    //±¾´ÎÉÏµçÉĞÎ´¼ÓÁ¦¡£
     AlignZeroFrames = 0U;                 //¶ªÆú³õÊ¼»¯ÆÚ¼äÁôÏÂµÄÊÚÈ¨¼ÆÊı¡£
     AlignPower = 0.0f;                    //½ûÖ¹²ĞÁô¶¨Î»·ùÖµ¡£
+    AlignFailure = 0U;                    //ĞÂµÄÉÏµçĞ£×¼²»¼Ì³Ğ¾ÉÕï¶ÏÔ­Òò¡£
+    AlignFirstFailure.valid = 0U;         //ÉÏµç¿ªÊ¼ĞÂÊÚÈ¨ÂÖ£¬ºóĞøµÚÒ»´ÎÊ§°ÜÖØĞÂ½¨Á¢¿ìÕÕ¡£
+    AlignLastSuccess.valid = 0U;          //ÉÏµçÃ»ÓĞ¿ÉĞÅ³É¹¦¼ÇÂ¼£¬²»ÄÜÏÔÊ¾ÉÏ´ÎRAM²ĞÁôºòÑ¡¡£
+    AlignRejectedStarts = 0U;             //´Ó±¾´ÎÉÏµç¿ªÊ¼ÀÛ¼ÆÎ´¾ÍĞ÷Æô¶¯ÇëÇó¡£
+    AlignSampleValid = 0U;                //ÉÏµçÉĞÎ´ÓĞ¶¨Î»ÆÚ¼äµÄÓĞĞ§²ÉÑù¡£
     SerUart3.NeedZeroRearm = 1U;          //Ğ£×¼Í¨¹ıÇ°½ûÖ¹ÆÕÍ¨Æô¶¯¡£
     TIM_PWM_Stop();                       //±àÂëÆ÷ºÍADC¼ÌĞø²ÉÑù£¬Ö»¹Ø±Õ¹¦ÂÊÊä³ö¡£
     AlignLastTick = HAL_GetTick();        //´Ó³õÊ¼»¯Íê³ÉÊ±¿ªÊ¼·Ç×èÈûµ÷¶È¡£
@@ -293,15 +380,15 @@ void Motor_AlignInit(void)
 }
 
 /*
- * º¯Êı¹¦ÄÜ£º¹ÊÕÏÓ²Í£Ê±Ê¹½Ç¶È»ù×¼Ê§Ğ§£¬²¢ÏŞÖÆ¹ÊÕÏÖĞµÄ×Ô¶¯¼ÓÁ¦¡£
- * ÊäÈë²ÎÊı£ºÎŞ¡£
+ * º¯Êı¹¦ÄÜ£ºÎ´Í¨¹ı¶¨Î»Ê±³·Ïú¹ÊÕÏÖĞµÄĞ£×¼Êä³ö²¢ÏŞÖÆÖØ¸´¼ÓÁ¦£¬ÔËĞĞÍ£»úµÄÓĞĞ§»ù×¼²»½øÈë±¾º¯Êı¡£
+ * ÊäÈë²ÎÊı£ºfault_codeÎªÓ²Í£ÒÑ¾­Ñ¡¶¨µÄÕæÊµ¹ÊÕÏÂë£¬µ÷ÓÃÇ°PWM±ØĞëÒÑ¾­¹Ø±Õ¡£
  * ·µ»Ø²ÎÊı£ºÎŞ¡£
  */
-void Motor_AlignOnFault(void)
+void Motor_AlignOnFault(uint8_t fault_code)
 {
-    uint8_t wait_release = (AlignValid != 0U ||
-        (AlignState == ALIGN_WAIT_ZERO && AlignAttempt == 0U)) ? 1U : 0U; //Õı³£ÔËĞĞ¹ÊÕÏ¿ÉÔÚÁãËÙÊÍ·ÅºóĞ£×¼£»Ğ£×¼ÖĞÔÙ¹ÊÕÏÔòËø×¡±¾ÂÖ¡£
-    AlignValid = 0U;                      //ÕæÊµ¹ÊÕÏ²»ÄÜÁôÏÂ¿ÉÆô¶¯µÄ¾ÉÁãµã¡£
+    uint8_t wait_release = (AlignState == ALIGN_WAIT_ZERO && AlignAttempt == 0U) ? 1U : 0U; //ÉĞÎ´¼ÓÁ¦µÄÉÏµçµÈ´ı¿ÉÔÚ¹ÊÕÏÊÍ·ÅºóĞ£×¼£»Ğ£×¼ÖĞ¹ÊÕÏËø×¡±¾ÂÖ¡£
+    if(wait_release == 0U){ Align_LatchFailure(5U, fault_code); } //Î´¿ªÊ¼µÄÉÏµçÍ¨ĞÅµÈ´ı²»Õ¼ÓÃÊ×¸ö¶¨Î»Ê§°Ü¼ÇÂ¼¡£
+    AlignValid = 0U;                      //Î´Í¨¹ıĞ£×¼µÄÁãµã¼ÌĞøÎŞĞ§£¬²»ÄÜ½èÇå¹ÊÕÏ·ÅĞĞÆÕÍ¨Æô¶¯¡£
     AlignState = wait_release ? ALIGN_WAIT_ZERO : ALIGN_FAILED; //Á¬ĞøÁãËÙ²»ÄÜ·´¸´ÖØÆôÊ§°ÜµÄ¶¨Î»¡£
     if(wait_release != 0U){
         AlignAttempt = 0U;               //Ê×´Î¹ÊÕÏÊÍ·Åºó¿ÉÉêÇëÒ»ÂÖÓĞÏŞĞ£×¼¡£
@@ -323,13 +410,18 @@ uint8_t Motor_AlignCommand(uint16_t speed)
         return 0U;                       //Õı³£ÔËĞĞÈÔÊ¹ÓÃÔ­´®¿ÚÂ·¾¶¡£
     }
     if(speed != 0U){
-        if(AlignState == ALIGN_FAILED && App.Err == E_NONE0 && SerUart3.NeedZeroRearm == 0U){
-            AlignState = ALIGN_WAIT_ZERO; //Ê§°ÜÒÑ±»ÁãËÙÈ·ÈÏºó£¬ĞÂÆô¶¯Ö»ÉêÇëĞÂĞ£×¼£¬²»Ö±½Ó³ö²¨¡£
-            AlignAttempt = 0U;           //Ö»ÓĞÕâ¸öĞÂµÄÇëÇó²ÅÄÜ¸´Î»±¾ÂÖ´ÎÊıÉÏÏŞ¡£
+        if(AlignRejectedStarts < 0xFFFFU){ AlignRejectedStarts++; } //½öÀÛ¼ÆÎó²Ù×÷£¬²»ÖĞ¶ÏÒÑ¾­ÊÚÈ¨µÄÓĞ½çĞ£×¼¡£
+        App.Log.Set_Speed = 0;            //Î´¾ÍĞ÷·ÇÁãÃüÁîÓÀÔ¶²»±£´æÎª´ıÔËĞĞËÙ¶È¡£
+        return 1U;                       //BUSY±£³ÖÔ­½×¶Î£¬FAILED±£³ÖÔ­¹ÊÕÏ£»¾ù²»ÄÜ½øÈëÆÕÍ¨ÔËĞĞ´¦Àí¡£
+    }
+    if(AlignState == ALIGN_FAILED){
+        if(Align_SafeToStart() != 0U &&
+           (App.Err == E_ALIGN6 || Protect_CanClearFault(App.Err) != 0U)){
+            if(AlignZeroFrames < ALIGN_ZERO_FRAMES){ AlignZeroFrames++; } //Ê§°ÜºóÖ»ÀÛ¼ÆĞÂµÄ°²È«ÁãËÙÖ¡£¬¸ø¶ÀÁ¢ÖØ¶¨Î»ÇëÇóÊ¹ÓÃ¡£
+        }else{
+            AlignZeroFrames = 0U;         //¹ÊÕÏÎïÀíÌõ¼şÉĞÎ´»Ö¸´Ê±³·ÏúÖØĞÂ¼ÓÁ¦×Ê¸ñ¡£
         }
-        Ctl_HardStop(App.Err != E_NONE0 ? App.Err : E_ALIGN6); //¾Ü¾øÌáÇ°Æô¶¯²¢Í¨ÖªÖ÷¿Ø·µ»ØÁãËÙ£¬¾ø²»»º´æÄ¿±êËÙ¶È¡£
-        AlignFailure = 6U;               //Çø·Ö²Ù×÷´ò¶ÏÓë±àÂëÆ÷/¹ıÁ÷Ê§°Ü¡£
-        return 1U;
+        return 1U;                       //ÁãËÙ²»Çå¶¨Î»Ê§°ÜÏÔÊ¾£¬Ò²²»»Ö¸´³¢ÊÔ´ÎÊı»ò×Ô¶¯¼ÓÁ¦¡£
     }
     if(App.Err != E_NONE0){
         if(Align_SafeToStart() == 0U ||
@@ -339,15 +431,83 @@ uint8_t Motor_AlignCommand(uint16_t speed)
         Protect_ResetCounters();         //ĞÂµÄÁãËÙÎÕÊÖ½öÇå±£»¤ÀÛ¼ÆÖµ£¬²»ÉèÖÃAlignValid¡£
         Ctl_HardStop(E_NONE0);            //¹ÊÕÏÈ·ÈÏÊ±¹¦ÂÊ±£³Ö¹Ø±Õ¡£
         if(App.Err != E_NONE0){ return 1U; } //ÇåÀí±ß½ç³öÏÖĞÂµÄBREAKÊ±²»·¢²¼ÈÎºÎÁãËÙÊÚÈ¨¡£
-        SerUart3.NeedZeroRearm = (AlignState == ALIGN_FAILED) ? 0U : 1U; //Ê§°ÜËø´æÖ»ÔÊĞíºóĞøÉêÇëĞ£×¼£¬²»ÄÜÔËĞĞ¡£
-    }
-    if(AlignState == ALIGN_FAILED){
-        return 1U;                       //ÒÑºÄ¾¡ÖØÊÔ´ÎÊı£¬³ÖĞøÁãËÙ²»µÃÔÙ×Ô¶¯¼ÓÁ¦¡£
+        SerUart3.NeedZeroRearm = 1U;      //½öÇåÊ×´ÎµÈ´ı½×¶ÎµÄ±£»¤£¬Ğ£×¼Íê³ÉÇ°ÈÔ½ûÖ¹ÆÕÍ¨Æô¶¯¡£
     }
     if(AlignZeroFrames < ALIGN_ZERO_FRAMES){
         AlignZeroFrames++;               //×î¶à¼ÇÂ¼Á½Ö¡£¬Ö¡µÄĞÂÏÊ¶ÈÓÉ100ms×âÔ¼±£Ö¤¡£
     }
     return 1U;                           //¶¨Î»ÖĞºÏ·¨ÁãËÙÖ»ĞøÔ¼£¬²»Ö´ĞĞÆÕÍ¨Ó²Í£¡£
+}
+
+/*
+ * º¯Êı¹¦ÄÜ£ºÖ»ÔÚÊ§°ÜËø´æ¡¢ÎïÀí»Ö¸´ºÍĞÂÁãËÙÎÕÊÖºó¿ªÆôÒ»ÂÖÓĞÏŞ¶¨Î»£¬¾ø²»»º´æÔËĞĞÄ¿±ê¡£
+ * ÊäÈë²ÎÊı£ºÎŞ£¬µ÷ÓÃ·½Ö»ÔÊĞí´ÓCRCÕıÈ·ÇÒËÙ¶ÈÎª0µÄ¶ÀÁ¢ÖØ¶¨Î»²Ù×÷Âë½øÈë£¬²¢´¦ÓÚÃüÁîÌá½»ÁÙ½çÇø¡£
+ * ·µ»Ø²ÎÊı£º½ÓÊÜĞÂ¶¨Î»ÂÖ·µ»Ø1£»¶¨Î»ÖĞ¡¢ÒÑ¾ÍĞ÷»ò»Ö¸´Ìõ¼ş²»×ãÊ±·µ»Ø0ÇÒ²»ÖØĞÂ¼ÓÁ¦¡£
+ */
+uint8_t Motor_AlignRequest(void)
+{
+    if(AlignValid != 0U || AlignState != ALIGN_FAILED || AlignZeroFrames < ALIGN_ZERO_FRAMES ||
+       Align_SafeToStart() == 0U || (App.Err != E_ALIGN6 && Protect_CanClearFault(App.Err) == 0U)){
+        return 0U;                       //ÖØ¸´ÇëÇó²»ÄÜÖØÖÃÕıÔÚ½øĞĞµÄ³¢ÊÔ£¬ÕæÊµ±£»¤Î´»Ö¸´Ê±²»ÄÜÇå¹ÊÕÏ¡£
+    }
+    Ctl_HardStop(E_NONE0);                //ĞÂÊÚÈ¨½¨Á¢Ç°¼ÌĞø±£³Ö¹¦ÂÊ¹Ø±Õ£¬Ó²¼şBREAKÈÔ¿É¾Ü¾øÇå¹ÊÕÏ¡£
+    if(App.Err != E_NONE0){ return 0U; }  //Ó²Í£Ìá½»ÆÚ¼ä³öÏÖĞÂÓ²¼ş±£»¤Ê±±£ÁôÔ­Ê§°ÜÓëÊ×´Î¿ìÕÕ¡£
+    Protect_ResetCounters();             //ÎïÀí»Ö¸´È·ÈÏºóÇå¾É±£»¤¼ÆÊ±£¬²»ĞŞ¸ÄÈÎºÎãĞÖµ¡£
+    AlignAttempt = 0U;                   //Ö»ÓĞÏÔÊ½ĞÂ¶¨Î»ÂÖ²ÅÄÜ¸´Î»Á½´Î³¢ÊÔÉÏÏŞ¡£
+    AlignFailure = 0U;                   //ĞÂÂÖµÄ×î½üÔ­Òò´Ó¿Õ¼ÇÂ¼¿ªÊ¼¡£
+    AlignFirstFailure.valid = 0U;        //±¾ÂÖÊ×¸öÊ§°Ü½«ÔÚÏÂÒ»´ÎÊ§°ÜÊ±Ò»´ÎĞÔ½¨Á¢¡£
+    AlignLastSuccess.valid = 0U;         //Ã÷È·ĞÂ¶¨Î»ÊÚÈ¨ºó£¬±ØĞëµÈ±¾ÂÖÍêÕûÍ¨¹ı²ÅÄÜÔÙ·¢²¼³É¹¦¼ÇÂ¼¡£
+    AlignSampleValid = 0U;               //²»ÄÜ°ÑÉÏÒ»ÂÖ²ÉÑùÎóÈÏÎªĞÂµÄ¶¨Î»Ñù±¾¡£
+    AlignZeroFrames = 0U;                //½ÓÏÂÀ´»¹ĞèĞÂµÄÆÕÍ¨ÁãËÙÖ¡£¬¶ÀÁ¢ÇëÇó±¾Éí²»ÊÚÈ¨Ö±½Ó³ö²¨¡£
+    AlignPower = 0.0f;                   //ĞÂÂÖ±ØĞë´ÓÁã·ùÖµ°´Ô­500msÅÀÉı¡£
+    SerUart3.NeedZeroRearm = 1U;         //¼´Ê¹ºóĞø¶¨Î»³É¹¦£¬Ò²±ØĞëĞÂÁãËÙ¡¢ĞÂÆô¶¯£¬²»ÄÜ×Ô¶¯ÔËĞĞ¡£
+    AlignState = ALIGN_WAIT_ZERO;        //Ö»×ªÈë°²È«µÈ´ı£¬²»ÔÚ´®¿Ú´¦ÀíÖĞÖ±½Ó²Ù×÷¶¨Î»Êä³ö¡£
+    Align_ResetStill(HAL_GetTick());    //Ô­50ms¾²Ö¹È·ÈÏ´Ó±¾´ÎÃ÷È·ÇëÇóÖ®ºóÖØĞÂ½¨Á¢¡£
+    return 1U;                           //·´À¡½«±äÎªBUSY£¬Ö÷¿Ø¼ÌĞøÁãËÙÍ¨ĞÅ¶ø·Ç²¹·¢Æô¶¯ËÙ¶È¡£
+}
+
+/*
+ * º¯Êı¹¦ÄÜ£ºÈ¡µÃ¹Ì¶¨7×Ö½Ú·´À¡Ê¹ÓÃµÄ¶¨Î»×´Ì¬ÓëÔ­Ê¼¹ÊÕÏÂë£¬¾ÉÖ÷¿ØÊÕµ½·ÇÁã×´Ì¬»á°²È«Í£»ú¡£
+ * ÊäÈë²ÎÊı£ºÎŞ£¬µ÷ÓÃ·½ÔÚ·´À¡¿ìÕÕÁÙ½çÇøÄÚ¶ÁÈ¡¡£
+ * ·µ»Ø²ÎÊı£º¸ß°ë×Ö½ÚÎªREADY/BUSY/FAILED£¬µÍ°ë×Ö½Ú±£³Ö0~6Ô­Ê¼±£»¤Âë¡£
+ */
+uint8_t Motor_AlignFeedback(void)
+{
+    uint8_t status = ALIGN_FEEDBACK_BUSY; //Ä¬ÈÏÎ´¾ÍĞ÷£¬²»ÄÜ°ÑApp.Err=0µ±×÷ÒÑĞ£×¼¡£
+    if(AlignValid != 0U && SerUart3.NeedZeroRearm == 0U){
+        status = ALIGN_FEEDBACK_READY;   //ÒÑÑéÖ¤»ù×¼ÇÒÁãËÙÊÚÈ¨Íê³É£¬ÈÔĞë¼ì²éÍ¬Ö¡¹ÊÕÏÂë¡£
+    }else if(AlignValid == 0U && AlignState == ALIGN_FAILED){
+        status = ALIGN_FEEDBACK_FAILED;  //Ê§°ÜÆÚ¼äÊ¼ÖÕ»Ø±¨Ê§°Ü£¬ÆÕÍ¨ÁãËÙ²»Òş²Ø¸Ã×´Ì¬¡£
+    }
+    return (uint8_t)(status | (App.Err & 0x0FU)); //Ô­¹ÊÕÏÓÅÏÈ¼¶±£³Ö£¬ÓÉÖ÷¿Ø·Ö±ğ½âÎö×´Ì¬ºÍ±£»¤¡£
+}
+
+/*
+ * º¯Êı¹¦ÄÜ£ºÃ÷È·È«Í£Ê±Á¢¼´È¡Ïû¶¨Î»£»ÒÑÑéÖ¤Áãµã±£Áô£¬Î´Íê³É¶¨Î»±ØĞëÔÙ´ÎÃ÷È·ÉêÇë²ÅÄÜ¼ÓÁ¦¡£
+ * ÊäÈë²ÎÊı£ºÎŞ£¬µ÷ÓÃ·½ÒÑĞ£Ñé¶ÀÁ¢È¡ÏûÖ¡ÎªÁãËÙ²¢½øÈëÃüÁîÌá½»ÁÙ½çÇø¡£
+ * ·µ»Ø²ÎÊı£ºÎŞ¡£
+ */
+void Motor_AlignCancel(void)
+{
+    uint8_t failure = AlignFailure;       //ÒÑÊ§°ÜÊ±±£Áô×î½üÅĞ¾İ£¬ÖØ¸´È¡Ïû²»ÄÜ°ÑÎïÀíÊ§°Ü¸Ä³ÉÓÃ»§È¡Ïû¡£
+    uint8_t fault = App.Err;              //È«Í£²»ÊÇÇå¹ÊÕÏÃüÁî£¬Ô­Ê¼±£»¤Âë±£³ÖÔ­ÓÅÏÈ¼¶¡£
+    if(AlignValid != 0U){
+        Ctl_HardStop(fault);              //ÒÑÑéÖ¤ÔËĞĞ½öÖ´ĞĞÔ­Ó²Í££¬±àÂëÆ÷¼ÆÊıºÍÓĞĞ§»ù×¼²»±ä¡£
+        if(App.Err == E_NONE0){ SerUart3.NeedZeroRearm = 0U; } //ÎŞ¹ÊÕÏµÄÃ÷È·ÁãËÙÍ£»úÍê³ÉÊÚÈ¨£¬ºóĞøÈÔĞèĞÂµÄ·ÇÁãÃüÁî¡£
+        return;                          //ÒÑÑéÖ¤Áãµã²»½øÈëÊ§°ÜÖØ¶¨Î»Á÷³Ì¡£
+    }
+    TIM_PWM_Stop();                       //ÏÈ¹Ø¹¦ÂÊ£¬ÔÙ±£´æÕï¶Ï£¬È¡Ïû²»µÈ´ıÏàÎ»¼ÆÊ±½áÊø¡£
+    if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) != GPIO_PIN_RESET ||
+       __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) != RESET){ fault = E_Hardware; } //È¡Ïû±ß½çµÄÓ²¼ş±£»¤ÈÔÓÅÏÈ¡£
+    if(fault == E_NONE0){ fault = E_ALIGN6; } //Î´ÑéÖ¤¶¨Î»±»È¡Ïûºó¼ÌĞøÊ¹ÓÃÎ´¶¨Î»¹ÊÕÏÂë½ûÖ¹ÔËĞĞ¡£
+    if(AlignState != ALIGN_FAILED){
+        failure = 6U;                    //Ö»¸ø±¾´ÎÖ÷¶¯È¡Ïû½¨Á¢Ô­Òò£¬²»¸²¸ÇÒÑ´æÔÚÊ§°ÜµÄ×î½üÅĞ¾İ¡£
+        Align_LatchFailure(fault == E_Hardware ? 5U : failure, fault); //ÒÑÓĞÊ×´Î¼ÇÂ¼²»»á±»Ìæ»»£¬Ó²¼ş±£»¤ÈÔ¼ÇÂ¼±£»¤Ô­Òò¡£
+    }
+    Ctl_HardStop(fault);                  //Í¬Ê±ÇåÄ¿±êËÙ¶È¡¢ÔËĞĞ»·»º´æºÍÁãËÙÊÚÈ¨£¬±£ÁôÕæÊµ±£»¤¡£
+    AlignState = ALIGN_FAILED;           //¼´Ê¹ÉĞÔÚÉÏµçWAIT£¬Ò²Ëø×¡±¾ÂÖ£¬ºóĞøÆÕÍ¨ÁãËÙ²»ÄÜÔÙ´Î×Ô¶¯¼ÓÁ¦¡£
+    AlignFailure = failure;              //»Ö¸´È¡ÏûÇ°µÄÅĞ¾İ»òÃ÷È·È¡ÏûÔ­Òò£¬²»½ÓÊÜÓ²Í£Í¨ÓÃÔ­Òò¸²¸Ç¡£
+    AlignZeroFrames = 0U;                //ÔÙ´ÎĞ£×¼±ØĞëÖØĞÂÊÕµ½°²È«ÁãËÙ²¢ÊÕµ½¶ÀÁ¢ÖØ¶¨Î»ÇëÇó¡£
 }
 
 /*
@@ -360,6 +520,9 @@ static void Align_Fail(uint8_t reason)
     uint32_t primask = __get_PRIMASK();    //±£»¤¡°½áÊøÊä³ö¡úÑ¡Ôñ²¹ÊÔ¡±ÃâÊÜBREAK¾ºÕù¸²¸Ç¡£
     __disable_irq();
     TIM_PWM_Stop();                       //ÈÎºÎÅĞ¾İÊ§°ÜÏÈ¹ØCC¡¢MOE¼°¼ÆÊıÆ÷¡£
+    Align_LatchFailure(reason, App.Err != E_NONE0 ? App.Err :
+        (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) != GPIO_PIN_RESET ||
+         __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) != RESET ? E_Hardware : E_ALIGN6)); //¹Ø¹¦ÂÊºó¼ÇÂ¼Ê×¸öÅĞ¾İÓëÕæÊµ±£»¤£¬²¹ÊÔ²»¸²¸Ç¡£
     AlignPower = 0.0f;
     AlignFailure = reason;               //±£ÁôÊ§°Ü½×¶Î¹©¶Ïµã¹Û²ì¡£
     if(App.Err == E_NONE0 &&
@@ -374,14 +537,26 @@ static void Align_Fail(uint8_t reason)
         Ctl_HardStop(App.Err != E_NONE0 ? App.Err :
             (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) != GPIO_PIN_RESET ||
              __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) != RESET ? E_Hardware : E_ALIGN6)); //ÎïÀí±£»¤ÓÅÏÈÓÚ¶¨Î»Ê§°ÜÂë¡£
-        AlignState = ALIGN_FAILED;        //´ÎÊıºÄ¾¡ºó³ÖĞøÁãËÙÖ»ÄÜÇå±¨¾¯£¬²»ÄÜÖØ¸´¼ÓÁ¦¡£
+        AlignState = ALIGN_FAILED;        //´ÎÊıºÄ¾¡ºó³ÖĞøÁãËÙ±£ÁôÊ§°Ü£¬Ö»ÓĞ¶ÀÁ¢ÖØ¶¨Î»ÇëÇóÄÜÖØĞÂÊÚÈ¨¡£
         AlignFailure = reason;
     }
     if(primask == 0U){ __enable_irq(); }  //»Ö¸´½øÈëÇ°µÄÖĞ¶Ï×´Ì¬¡£
 }
 
 /*
- * º¯Êı¹¦ÄÜ£ºÔÚ°²È«ÁÙ½çÇøÄÚÆô¶¯Ò»ÂÖB/A/B/A¶¨Î»¡£
+ * º¯Êı¹¦ÄÜ£ºÌáÇ°¼ì²é·¢ÏÖÎ»ÒÆ²»ºÏ¸ñÊ±±£ÁôÔ­¹Û²ìÊ±¼ä£¬±ÜÃâ¼Ó¿ìÕı³£¶¨Î»ºóÎó¾Ü¾øÂıÏìÓ¦±Ã¡£
+ * ÊäÈë²ÎÊı£ºreasonÎªµ±Ç°¼¸ºÎ²»ºÏ¸ñÔ­Òò£»elapsedÎª±¾½×¶ÎÒÑÓÃºÁÃëÊı¡£
+ * ·µ»Ø²ÎÊı£ºÎŞ£»Ô­¹Û²ìÊ±¼äÎ´ÂúÊ±¼ÌĞøÍ¬ÏàÀø´Å£¬³¬Ê±ÓëµçÆø±£»¤ÈÔÓÉÔ­Â·¾¶¶ÀÁ¢´¦Àí¡£
+ */
+static void Align_WaitOrFail(uint8_t reason, uint32_t elapsed)
+{
+    if(elapsed >= ALIGN_RAMP_MS + ALIGN_HOLD_MS){
+        Align_Fail(reason);              //Âú500msÅÀÉıºÍÔ­300ms¹Û²ìºóÈÔ²»ºÏ¸ñ£¬²Å½áÊø±¾´Î³¢ÊÔ£»²»ÌáÇ°ÏûºÄ²¹ÊÔ´ÎÊı¡£
+    }
+}
+
+/*
+ * º¯Êı¹¦ÄÜ£ºÔÚ°²È«ÁÙ½çÇøÄÚÆô¶¯Ò»ÂÖÍêÕûÁù½×¶Î¶¨Î»£¬ËùÓĞºòÑ¡±ØĞëÀ´×Ô±¾´Î³¢ÊÔ¡£
  * ÊäÈë²ÎÊı£ºnowÎªµ±Ç°ºÁÃëÊ±¼ä¡£
  * ·µ»Ø²ÎÊı£ºÎŞ¡£
  */
@@ -399,6 +574,18 @@ static void Align_Begin(uint32_t now)
         AlignPhaseTick = now;
         AlignAttemptTick = now;
         AlignPower = 0.0f;                //Ã¿ÂÖÖØĞÂ´ÓÁãµçÑ¹ÅÀÉı¡£
+        AlignSampleValid = 0U;            //Ã¿´Î³¢ÊÔ±ØĞë²Éµ½×Ô¼ºµÄµçÁ÷/µçÑ¹£¬Ê×´ÎÊ§°Ü¼ÇÂ¼Ôò¿ç²¹ÊÔ±£Áô¡£
+        AlignDeltaForward = 0;            //ĞÂ³¢ÊÔµÄÈ¥³ÌÊı¾İÖØĞÂ½¨Á¢£¬²»°ÑÇ°´ÎÎ»ÒÆ´øÈë¿ìÕÕ¡£
+        AlignDeltaReturn = 0;             //ĞÂ³¢ÊÔµÄ»Ø³ÌÊı¾İ´ÓÎ´²â×´Ì¬¿ªÊ¼£¬ÓÉ½×¶Î×Ö¶ÎÇø·ÖÓĞĞ§ĞÔ¡£
+        AlignReturnError = 0;             //ĞÂµÄAÏàºòÑ¡²»ÄÜÊ¹ÓÃÉÏ´Î»ØÎ»Îó²î¡£
+        AlignFirstB = 0;                  //Ê×¶Î²Î¿¼±¾ÂÖÖØĞÂ²É¼¯£¬²»ÄÜÑØÓÃÉÏ´ÎÊÜÈÅÎ»ÖÃ¡£
+        AlignFirstA = 0;                  //µÚÒ»AºòÑ¡ÔÚµ½Î»Ç°ÎŞĞ§£¬±ØĞëÖØĞÂ²âÁ¿¡£
+        AlignCheckB = 0;                  //ÕıB¸´²é²»¸´ÓÃ¾É³¢ÊÔµÄ²âÁ¿Öµ¡£
+        AlignSecondA = 0;                 //µÚ¶şAºòÑ¡Ö»ÄÜÓÉ±¾ÂÖÕıB·µ»Øºó½¨Á¢¡£
+        AlignOppositeB = 0;               //ÁíÒ»²à²Î¿¼Ö»ÄÜÓÉ±¾ÂÖ·´BÎüºÏ½¨Á¢¡£
+        AlignCandidate.phase_mask = 0U;   //³·Ïú¾ÉºòÑ¡ÍêÕûĞÔ£¬Áù¸ö½×¶Î±ØĞëÖğ¸öÖØĞÂÍ¨¹ı¡£
+        AlignCandidate.sample_valid_mask = 0U; //±¾ÂÖ¸÷½×¶ÎµÄ²ÉÑùÓĞĞ§ĞÔÖØĞÂ¼ÇÂ¼£¬²»½èÓÃÉÏÂÖµçÁ÷¡£
+        AlignCandidate.valid = 0U;        //ºòÑ¡¹¤×÷ÇøÊ¼ÖÕÎ´·¢²¼£¬Ö»ÔÚ×îÖÕ³É¹¦¿ìÕÕÖĞÖÃÓĞĞ§±êÖ¾¡£
         AlignTableIndex = ALIGN_STEP_COUNTS; //BÏàÕıµçÑ¹¶ÔÓ¦ËÄ·ÖÖ®Ò»µçÖÜÆÚ¡£
         Align_ResetStill(now);
         App.Start = 0U;
@@ -412,7 +599,7 @@ static void Align_Begin(uint32_t now)
 }
 
 /*
- * º¯Êı¹¦ÄÜ£ºÔÚ×îÖÕAÏà±£³ÖÇÒÍù·µĞ£ÑéÍ¨¹ıºó½¨Á¢Áãµã£¬ÔÙ¹Ø±ÕPWM´ı»ú¡£
+ * º¯Êı¹¦ÄÜ£ºÁù½×¶Î¼°Ë«²àAºòÑ¡È«²¿Í¨¹ıºó½¨Á¢Áãµã£¬¼ÇÂ¼³É¹¦ÖÊÁ¿²¢¹Ø±ÕPWM´ı»ú¡£
  * ÊäÈë²ÎÊı£ºÎŞ¡£
  * ·µ»Ø²ÎÊı£ºÎŞ¡£
  */
@@ -420,10 +607,15 @@ static void Align_Finish(void)
 {
     uint32_t primask = __get_PRIMASK();
     __disable_irq();                      //Áãµã¡¢PWM¹Ø±Õ¼°ÊÚÈ¨×´Ì¬ÔÚÍ¬Ò»ÁÙ½çÇø·¢²¼¡£
+    if(AlignCandidate.phase_mask != (uint8_t)((1U << ALIGN_PHASE_COUNT) - 1U)){
+        Ctl_HardStop(App.Err != E_NONE0 ? App.Err : E_ALIGN6); //È±ÈÎºÎ½×¶Î¶¼½ûÖ¹Çå±àÂëÆ÷£¬±£Áô¸üÔçµÄÕæÊµ±£»¤¡£
+        if(primask == 0U){ __enable_irq(); } //Òì³£·µ»ØÇ°»Ö¸´½øÈë×´Ì¬£¬²»ÄÜÒÅÁôÈ«¾Ö¹ØÖĞ¶Ï¡£
+        return;                          //Î´ÍêÕûÑéÖ¤µÄºòÑ¡²»ÄÜ·¢²¼ÎªREADY»ò³É¹¦¿ìÕÕ¡£
+    }
     if(App.Err == E_NONE0 && App.Status == CTLS_ALIGN &&
        HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == GPIO_PIN_RESET &&
        __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) == RESET){
-        TIM2->CNT = 0U;                   //½öÒÑÍ¨¹ıÍù·µÑéÖ¤µÄAÏàÎ»ÖÃ¿É³ÉÎªĞÂµç½Ç¶ÈÁãµã¡£
+        TIM2->CNT = 0U;                   //½öÁù½×¶ÎÍ¨¹ıºóµÄ×îÖÕÕıAÎ»ÖÃ¿É³ÉÎªÁãµã£¬²»Æ½¾ùÑÚ¸ÇÁ½²à²îÒì¡£
         TIM_PWM_Stop();                   //¶¨Î»½áÊø²»±£³Ö¼ÓÁ¦£¬±àÂëÆ÷¼ÌĞø¼ÇÂ¼ºóĞø»Øµ¯¡£
         if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == GPIO_PIN_RESET &&
            __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) == RESET){
@@ -435,7 +627,14 @@ static void Align_Finish(void)
             App.Status = CTLS_WAIT;
             AlignPower = 0.0f;
             AlignState = ALIGN_READY;
-            AlignValid = 1U;             //×îºó·¢²¼ÓĞĞ§Áãµã£»ÖĞ¶Ï»Ö¸´ºóÕæÊµ¹ÊÕÏÈÔÄÜ³·Ïú¡£
+            AlignCandidate.tick_ms = HAL_GetTick(); //¼ÇÂ¼ÕæÕıÌá½»³É¹¦µÄÊ±¿Ì£¬¶ø²»ÊÇÊ×¸öAºòÑ¡Ê±¿Ì¡£
+            AlignCandidate.duration_ms = AlignCandidate.tick_ms - AlignAttemptTick; //Ö»Í³¼Æ±¾´Î³É¹¦³¢ÊÔµÄÁù½×¶ÎÊ±³¤¡£
+            AlignCandidate.attempt = AlignAttempt; //ÓëÊ×¸öÊ§°Ü¼ÇÂ¼²¢´æ£¬¿ÉÃ÷È·ÊÇµÚ¼¸´Î²¹ÊÔÍ¨¹ı¡£
+            AlignLastSuccess.valid = 0U;  //¸´ÖÆÆÚ¼ä±£³ÖÎ´·¢²¼£¬Íâ²¿²»ÄÜ¶ÁÈ¡°ë·İ³É¹¦Êı¾İ¡£
+            AlignLastSuccess = AlignCandidate; //ÔÚµ±Ç°¶ÌÁÙ½çÇøÄÚÒ»´Î¸´ÖÆÁù½×¶ÎÕï¶Ï£¬²»½øĞĞ´®¿Ú»òFlashĞ´Èë¡£
+            __DMB();                      //ÏÈÌá½»ÍêÕûÎ»ÖÃ/ÖÊÁ¿/²ÉÑù£¬ÔÙ·¢²¼¿É¶Á±êÖ¾¡£
+            AlignLastSuccess.valid = 1U;  //½öµ½´Ë´¦±íÊ¾È«²¿ĞÂÅĞ¾İÍ¨¹ı£¬²»ÄÜµÈÍ¬¾ø¶Ô´ÅÁãµãÒÑ»ñÌ¨¼ÜÑéÖ¤¡£
+            AlignValid = 1U;             //×îºó·¢²¼ÒÑÑéÖ¤»ù×¼£»ºóĞøÆÕÍ¨ÔËĞĞ±£»¤ÈÔÑØÓÃÔ­ÁãËÙ»Ö¸´Á÷³Ì¡£
             SerUart3.RxEnd = 0U;          //¶ªÆúÍê³É±ß½çÇ°µÄ¾ÉÃüÁî¿ìÕÕ¡£
             SerUart3.NeedZeroRearm = 1U;  //±ØĞëÔÙÊÕµ½ĞÂµÄÁãËÙÖ¡£¬È»ºó²ÅÄÜ½ÓÊÜĞÂµÄ·ÇÁãÃüÁî¡£
             Protect_ResetCounters();
@@ -449,41 +648,46 @@ static void Align_Finish(void)
 }
 
 /*
- * º¯Êı¹¦ÄÜ£ºÔÚPWM½ÚÅÄÄÚÏŞÖÆ¶¨Î»µçÁ÷²¢Éú³ÉÓë±àÂëÆ÷ÁãµãÎŞ¹ØµÄA/BµçÑ¹¡£
+ * º¯Êı¹¦ÄÜ£º°´Ô­ºÁÃë²ÎÊıÅÀÉıÁù½×¶Î¹Ì¶¨ÏàµçÑ¹£¬·ùÖµÈ¡²ÎÊı46£¬±£³ÖÔ­Ä¸Ïß±£»¤¼°²¹ÊÔÍ¬·ù¡£
  * ÊäÈë²ÎÊı£ºÎŞ¡£
  * ·µ»Ø²ÎÊı£ºÎŞ¡£
  */
 void Motor_AlignOutput(void)
 {
-    uint32_t primask;                     //½ö×îÖÕÊä³öÌá½»Ê¹ÓÃ¶ÌÁÙ½çÇø£¬ÏŞÁ÷¼ÆËã²»×èÈûÖĞ¶Ï¡£
-    float maximum = (float)MCPara[46] / 10.0f; //ÑØÓÃÏÖÓĞ5VÉÏÏŞ£¬²¹ÊÔ²»×Ô¶¯Ìá¸ßÁ¦Á¿¡£
-    float step = maximum * 1000.0f / ((float)ALIGN_RAMP_MS * PWM_FRE); //·ùÖµÔ¼25ms´ÓÁãÅÀµ½Éè¶¨Öµ¡£
-    float phase1 = App.Cal.Current1 >= 0.0f ? App.Cal.Current1 : -App.Cal.Current1;
-    float phase2 = App.Cal.Current2 >= 0.0f ? App.Cal.Current2 : -App.Cal.Current2;
-    if(App.Err != E_NONE0 || AlignState < ALIGN_B_FIRST || AlignState > ALIGN_A_CHECK){
+    uint32_t primask;                     //½ö×îÖÕÊä³öÌá½»Ê¹ÓÃ¶ÌÁÙ½çÇø£¬Ê±¼ä¼ÆËã²»×èÈûÖĞ¶Ï¡£
+    float maximum = (float)MCPara[46] / 10.0f; //²ÎÊı46°´0.1V»»Ëã£¬µ±Ç°ºòÑ¡5.5V£»²¹ÊÔ²»ÔÙ´ÎÉıÑ¹£¬Êµ¼ÊÏàµçÁ÷ÈÔĞëÌ¨¼ÜÈ·ÈÏ¡£
+    uint32_t ramp_ms = ALIGN_RAMP_MS;     //Ô­²ÎÊı51¡Á52¸ø³öÕæÊµÅÀÉıÊ±¼ä£¬²»ÒÀÀµPWM_FRE×¢ÊÍ»òÖĞ¶Ï´ÎÊı¡£
+    uint32_t elapsed = HAL_GetTick() - AlignPhaseTick; //Í¬Ò»½×¶Î°´ºÁÃëÊ±ÖÓ¼ÆÊ±£¬PWMÆµÂÊ±ä»¯²»ÔÙ¼Ó¿ì¶¨Î»ÅÀÉı¡£
+    if(App.Err != E_NONE0 || AlignState < ALIGN_B_FIRST || AlignState > ALIGN_A_VERIFY){
         TIM_PWM_Stop();                   //±»Òì²½¹ÊÕÏ³·Ïúºó²»ÄÜÔÙĞ´·ÇÁã¶¨Î»Êä³ö¡£
         return;
     }
-    if(!(App.Adc.Current_AllTemp >= 0.0f) ||
-       App.Adc.Current_AllTemp >= App.Prot.OverCurrent ||
-       !(phase1 < ALIGN_PHASE_LIMIT_A) || !(phase2 < ALIGN_PHASE_LIMIT_A)){
-        Ctl_HardStop(E_OC1);              //ÈÎÒ»Ïà´ï1.2A»òÄ¸Ïß´ïÔ­¹ıÁ÷ãĞÖµÁ¢¼´Ó²Í££¬²»µÈ´ıÔËĞĞ500ms¼ÆÊ±¡£
+    if(!(App.Cal.CurrentT >= 0.0f)){
+        Ctl_HardStop(E_OC1);              //ÎŞĞ§²ÉÑùÈÔÓ²Í££»ÓĞĞ§µçÁ÷°´Ô­Ä¸ÏßãĞÖµºÍÀÛ¼ÆÑÓÊ±±£»¤£¬²»×÷ÏàµçÁ÷µ¥µãÅĞ¾ö¡£
         return;
     }
-    if(App.Adc.Current_AllTemp >= App.Prot.OverCurrent * ALIGN_BUS_LIMIT_RATIO ||
-       phase1 >= ALIGN_PHASE_SOFT_A || phase2 >= ALIGN_PHASE_SOFT_A){
-        AlignPower -= step * 2.0f;        //µçÁ÷½Ó½üÉÏÏŞÊ±ÓÅÏÈ½µµÍµçÑ¹£¬²»ÄÜ³ÖĞø¶¥×ÅãĞÖµ¼ÓÁ¦¡£
-        if(AlignPower < 0.0f){ AlignPower = 0.0f; }
-    }else{
-        AlignPower += step;              //ÔÊĞí·¶Î§ÄÚÖğ½¥½¨Á¢Ô­¶¨Î»Á¦Á¿¡£
-        if(AlignPower > maximum){ AlignPower = maximum; }
+    if(ramp_ms == 0U){
+        Ctl_HardStop(E_ALIGN6);           //´íÎóÊ±¼ä²ÎÊı²»µÃ²úÉú³ıÁã»òÖ±½ÓÂú·ùÎüºÏ¡£
+        return;
     }
+    if(elapsed > ramp_ms){ elapsed = ramp_ms; } //ÅÀÉıÍê³ÉºóÎ¬³ÖÔ­²ÎÊı46ÉÏÏŞ£¬²»Ëæ³ÖĞøÊä³ö¼ÌĞøÔö´ó¡£
     primask = __get_PRIMASK();
     __disable_irq();                      //·ÀÖ¹BREAKÇåCCRºó£¬·µ»Ø´Ë´¦ÓÖĞ´»Ø·ÇÁã±È½ÏÖµ¡£
     if(App.Err == E_NONE0 && App.Status == CTLS_ALIGN &&
        HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) == GPIO_PIN_RESET &&
        __HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) == RESET){
-        Set_OutPut_A(AlignPower * cos_table[AlignTableIndex], App.Cal.voltage); //ÏàÎ»ÓÉ¶¨Î»³ÌĞò¸ø¶¨£¬²»ÓÃÎ´ÖªµÄ±àÂëÆ÷½Ç¶È¡£
+        if((AlignSampleValid == 0U || AlignSampleTick != HAL_GetTick()) &&
+           App.Cal.Current1 >= -FLT_MAX && App.Cal.Current1 <= FLT_MAX &&
+           App.Cal.Current2 >= -FLT_MAX && App.Cal.Current2 <= FLT_MAX &&
+           App.Cal.voltage >= 0.0f && App.Cal.voltage <= FLT_MAX){ //Ã¿ºÁÃë×î¶à±£ÁôÒ»´ÎÓĞÏŞÖµÑù±¾£»²»Ôö¼ÓÏàµçÁ÷ÌøÕ¢ÃÅ¼÷¡£
+            AlignSampleA = App.Cal.Current1; //ÔÚÒÑÓĞÊä³öÁÙ½çÇøÄÚ±£´æÍêÕûÑù±¾£¬BREAK²»ÄÜ¶Áµ½°ë¸üĞÂÊı¾İ¡£
+            AlignSampleB = App.Cal.Current2; //±£ÁôÏàµçÁ÷Õı¸ººÅ£¬ºóĞø¿ÉÇø·ÖÀø´Å·½ÏòºÍÆ«ÖÃ¡£
+            AlignSampleVoltage = App.Cal.voltage; //ºÍÏàµçÁ÷Ò»Æğ¼ÇÂ¼¹©µçÇé¿ö£¬²»Ê¹ÓÃµçÔ´Ãæ°åÖµ´úÌæ¡£
+            AlignSampleTick = HAL_GetTick(); //¼ÇÂ¼Ñù±¾Ê±¿Ì£¬ÎŞĞ§ĞÂÑù±¾²»»á¸²¸Ç¾ÉµÄÓĞĞ§¼ÇÂ¼¡£
+            AlignSampleValid = 1U;         //ËùÓĞÑù±¾×Ö¶ÎĞ´Íêºó²ÅÔÊĞíÊ§°Ü¿ìÕÕÒıÓÃ¡£
+        }
+        AlignPower = maximum * (float)elapsed / (float)ramp_ms; //¸÷¹Ì¶¨Ïà¶¼´ÓÁãÅÀÉıµ½Ô­¶¨Î»µçÑ¹£¬³·»ØĞÂÔöÏàµçÁ÷¼°Ä¸Ïß½µÑ¹ÏŞÖÆ¡£
+        Set_OutPut_A(AlignPower * cos_table[AlignTableIndex], App.Cal.voltage); //Ç°ËÄ½×¶Î±£³ÖÔ­Ğò£¬ÔÙÒÔ·´B/ÕıAÑéÖ¤ÁíÒ»²à£¬²»Ê¹ÓÃÎ´Ğ£×¼±àÂëÆ÷½Ç¶È¡£
         Set_OutPut_B(AlignPower * sin_table[AlignTableIndex], App.Cal.voltage);
     }else{
         Ctl_HardStop(App.Err != E_NONE0 ? App.Err : E_Hardware); //¹Ø¹¦ÂÊ²¢±£ÁôÏÈ·¢ÉúµÄ±£»¤¡£
@@ -492,7 +696,7 @@ void Motor_AlignOutput(void)
 }
 
 /*
- * º¯Êı¹¦ÄÜ£º·Ç×èÈûÍÆ½ø°²È«µÈ´ı¡¢B/A/B/AĞ£Ñé¡¢ÓĞÏŞÖØÊÔ¼°Íê³É´ı»ú¡£
+ * º¯Êı¹¦ÄÜ£ºÎÈ¶¨ÇÒÎ»ÒÆºÏ¸ñºóÌáÇ°ÍÆ½øÁù½×¶ÎË«²à¶¨Î»£»ÂıÏìÓ¦±£ÁôÔ­¹Û²ìÔ¤Ëã£¬ÓĞÏŞÖØÊÔºóÈÔÊ§°ÜÔòËø´æ¡£
  * ÊäÈë²ÎÊı£ºÎŞ¡£
  * ·µ»Ø²ÎÊı£ºÎŞ¡£
  */
@@ -503,6 +707,7 @@ void Motor_AlignProcess(void)
     uint32_t primask;                     //Ö»±£»¤½×¶Î·¢²¼£¬²»½«Õû¸öºÁÃë´¦ÀíÖÃÓÚ¹ØÖĞ¶ÏÇø¡£
     uint8_t state;                        //±£´æ±¾´Î½×¶Î£¬¾Ü¾ø¸²¸ÇÒì²½¹ÊÕÏ¸Ä±äµÄ×´Ì¬¡£
     int16_t count;
+    int16_t step_delta;                   //ĞÂÔöÊ×¶Î¼°·´BÍù·µµÄÊµ¼ÊÓĞ·ûºÅÎ»ÒÆ£¬²»½èÓÃ¾ÉÈ¥³Ì²âÁ¿¡£
     if(now == AlignLastTick){ return; }   //Ö÷Ñ­»·ÖØ¸´µ÷ÓÃ²»ÄÜ°Ñ¼ÆÊ±¼Ó¿ì¡£
     AlignLastTick = now;
     if((TIM1->CR1 & TIM_CR1_CEN) == 0U){
@@ -525,7 +730,9 @@ void Motor_AlignProcess(void)
         }
         if(AlignState == ALIGN_RETRY_OFF && (uint32_t)(now - AlignOffTick) < ALIGN_RETRY_OFF_MS){ return; }
         if(Align_IsStill(now, ALIGN_RELEASE_MS) != 0U){
-            if(MCPara[46] == 0U || MCPara[46] > 240U || App.Prot.OverCurrent <= 0.0f){
+            if(MCPara[46] == 0U || MCPara[46] > 240U || App.Prot.OverCurrent <= 0.0f ||
+               ALIGN_RAMP_MS == 0U || ALIGN_HOLD_MS == 0U ||
+               ALIGN_RAMP_MS > (0xFFFFFFFFU / ALIGN_PHASE_COUNT) - ALIGN_HOLD_MS - ALIGN_PHASE_EXTRA_MS){ //ÏÈÔ¼ÊøÅÀÉıÖµ£¬±ÜÃâ½×¶ÎÇóºÍ»òÁù½×¶Î×ÜÊ±ÏŞ³Ë·¨Òç³ö¡£
                 AlignAttempt = ALIGN_MAX_ATTEMPTS; //ÎŞĞ§²ÎÊı²»µÃ³ö²¨»ò·´¸´ÖØÊÔ¡£
                 Align_Fail(5U);
             }else{
@@ -536,6 +743,10 @@ void Motor_AlignProcess(void)
     }
     if(App.Status != CTLS_ALIGN){ return; } //ÖĞ¶ÏÓ²Í£ºóÖ÷Ñ­»·²»µÃÍÆ½ø¾ÉµÄ¶¨Î»½×¶Î¡£
     state = AlignState;                   //ºóĞøÅĞ¶ÏÊ¹ÓÃÍ¬Ò»¸ö½×¶Î¿ìÕÕ¡£
+    if(state < ALIGN_B_FIRST || state > ALIGN_A_VERIFY){
+        Ctl_HardStop(E_ALIGN6);           //ĞÂÔöÁù½×¶Î¼ÇÂ¼Ê¹ÓÃ×´Ì¬×÷ÎªÏÂ±ê£¬Òì³£×´Ì¬±ØĞëÓ²Í££¬²»ÄÜÔ½½çĞ´ºòÑ¡¡£
+        return;                          //Ö»ÓĞÁù¸öÃ÷È·µÄ¼ÓÁ¦½×¶Î¿ÉÒÔ½øÈëÎÈ¶¨ĞÔºÍ¼¸ºÎ¼ì²é¡£
+    }
     if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12) != GPIO_PIN_RESET){
         Ctl_HardStop(E_Hardware);
         return;
@@ -549,29 +760,30 @@ void Motor_AlignProcess(void)
         return;
     }
     elapsed = now - AlignPhaseTick;
-    if(elapsed >= ALIGN_PHASE_MAX_MS || (uint32_t)(now - AlignAttemptTick) >= 4U * ALIGN_PHASE_MAX_MS){
+    if(elapsed >= ALIGN_PHASE_MAX_MS || (uint32_t)(now - AlignAttemptTick) >= ALIGN_PHASE_COUNT * ALIGN_PHASE_MAX_MS){
         Align_Fail(1U);                  //³¬Ê±Ò²²»ÄÜÇåÁã£»×î¶à°²ÅÅÒ»´Î²¹ÊÔ¡£
         return;
-    }
-    if(state == ALIGN_B_FIRST){
-        AlignTableIndex = ALIGN_STEP_COUNTS; //Ê×´ÎBÏàÖ»ÅÀÉıµçÑ¹£¬³õÊ¼Î»ÖÃÎ´Öª²»Ö±½ÓÑéÖ¤Î»ÒÆ¡£
-    }else{
-        uint32_t travel = elapsed < ALIGN_RAMP_MS ? elapsed : ALIGN_RAMP_MS;
-        uint16_t fraction = (uint16_t)(ALIGN_STEP_COUNTS * travel / ALIGN_RAMP_MS);
-        AlignTableIndex = state == ALIGN_B_CHECK ? fraction : ALIGN_STEP_COUNTS - fraction; //Á½ÏàÁ¬Ğø¹ı¶É£¬¼õÉÙ´Å³¡Í»È»Ìø±ä¡£
     }
     if(elapsed < ALIGN_RAMP_MS || AlignPower <= 0.1f){
         Align_ResetStill(now);            //´Å³¡ÉĞÎ´µ½Î»»òÎŞÓĞĞ§Êä³öÊ±²»ÄÜÀÛ¼ÆÄ©¶Î¾²Ö¹¡£
         return;
     }
-    if(Align_IsStill(now, ALIGN_STABLE_MS) == 0U){ return; }
+    if(Align_IsSettled(now) == 0U){ return; } //Ä©¶ÎÕûÌå°Ú·ùºÍÁ¬Ğø100ms¾ùºÏ¸ñºó²ÅÔÊĞí¼ì²éÎ»ÖÃ£¬½×¶Î½ØÖ¹²»ÖØÖÃ¡£
+    if(elapsed < ALIGN_RAMP_MS + ALIGN_STABLE_MS){ return; } //ÖÁÉÙ500msÅÀÉıºÍÂú·ùºó100msÖÊÁ¿¹Û²ì£¬ºÏ¸ñºó²»ÔÙ¿ÕµÈÔ­300ms£»ÂıÏìÓ¦ÈÔÊÜ820ms½ØÖ¹Ô¼Êø¡£
     count = (int16_t)TIM2->CNT;            //Ö»Ê¹ÓÃÔ­Ê¼¼ÆÊı£¬Í£»úÂ·¾¶»áÇå³ıÂË²¨ËÙ¶È¡£
-    if(state == ALIGN_A_FIRST){
+    if(state == ALIGN_B_FIRST){
+        AlignFirstB = count;             //ÏÈ±£´æÊ×¸öB²Î¿¼£¬ÏÂÒ»¶Î±ØĞëÖ¤Ã÷´ÓÕâÀïÕæÊµÏòAÒÆ¶¯¡£
+    }else if(state == ALIGN_A_FIRST){
+        step_delta = Align_Delta(count, AlignFirstB); //²¹ÆëÒÔÍùÂ©¼ìµÄÊ×Bµ½Ê×A£¬ÊÜÈÅÊ×¶Î²»ÄÜ±»ºóÃæµÄÍù·µÑÚ¸Ç¡£
+        if(abs(step_delta + ALIGN_ENCODER_SIGN * (int16_t)ALIGN_STEP_COUNTS) > ALIGN_STEP_TOLERANCE){
+            Align_WaitOrFail(7U, elapsed); //Ê×Bµ½A²»ºÏ¸ñÏÈ±£ÁôÔ­¹Û²ìÊ±¼ä£¬²»ÄÜÖ»Æ¾ºóĞøÍ¬²àÖØ¸´·ÅĞĞ¡£
+            return;                     //Ê×¸öAÎ»ÖÃ²»ºÏ¸ñ£¬²»ÄÜ×÷ÎªºóÃæ¸÷½×¶ÎµÄ»ù×¼¡£
+        }
         AlignFirstA = count;             //Ôİ´æºòÑ¡Î»ÖÃ£¬ºóĞøÈÔ±ØĞëÑéÖ¤Êµ¼Ê¿ÉÒÆ¶¯¡£
     }else if(state == ALIGN_B_CHECK){
         AlignDeltaForward = Align_Delta(count, AlignFirstA);
         if(abs(AlignDeltaForward - ALIGN_ENCODER_SIGN * (int16_t)ALIGN_STEP_COUNTS) > ALIGN_STEP_TOLERANCE){
-            Align_Fail(2U);              //°üÀ¨¿¨×¡¡¢·´Ïò»òÒÆ¶¯²»×ã¡£
+            Align_WaitOrFail(2U, elapsed); //¿¨×¡¡¢·´Ïò»òÎ»ÒÆ²»×ãÏÈµÈÔ­¹Û²ìÔ¤Ëã£¬ÈÔ²»ºÏ¸ñ²Å¾Ü¾ø£¬²»·Å¿íÎ»ÒÆÃÅ¼÷¡£
             return;
         }
         AlignCheckB = count;
@@ -579,22 +791,48 @@ void Motor_AlignProcess(void)
         AlignDeltaReturn = Align_Delta(count, AlignCheckB);
         AlignReturnError = Align_Delta(count, AlignFirstA);
         if(abs(AlignDeltaReturn + ALIGN_ENCODER_SIGN * (int16_t)ALIGN_STEP_COUNTS) > ALIGN_STEP_TOLERANCE){
-            Align_Fail(3U);
+            Align_WaitOrFail(3U, elapsed); //»Ø³Ì²»ºÏ¸ñÏÈµÈ´ıÂıÏìÓ¦£¬´ïµ½Ô­¹Û²ìÊ±³¤ºóÈÔ²»»ØÎ»²ÅÊ§°Ü¡£
             return;
         }
         if(abs(AlignReturnError) > ALIGN_RETURN_TOLERANCE){
-            Align_Fail(4U);              //ÄÜÒÆ¶¯µ«Î´»Øµ½Í¬Ò»AÎ»ÖÃÈÔ²»ÄÜÈÏ¶¨Áãµã¿É¿¿¡£
+            Align_WaitOrFail(4U, elapsed); //»Øµ½Í¬Ò»AµÄÖØ¸´ĞÔ²»ºÏ¸ñÊ±±£ÁôÔ­¹Û²ìÊ±¼ä£¬²»ÄÜÌáÇ°ÈÏ¶¨Áãµã¿É¿¿¡£
             return;
         }
-        Align_Finish();
-        return;
+        AlignSecondA = count;            //Í¬²àÖØ¸´ºÏ¸ñÈÔÖ»ÊÇºòÑ¡£¬±ØĞë×·¼ÓÁíÒ»²à·µ»ØÑéÖ¤¡£
+    }else if(state == ALIGN_B_OPPOSITE){
+        step_delta = Align_Delta(count, AlignSecondA); //´ÓA¸ºÏòÒÆ¶¯µ½·´B£¬¼ì²éÁíÒ»²àÈ·Êµ¿ÉÒÔÏìÓ¦´Å³¡¡£
+        if(abs(step_delta + ALIGN_ENCODER_SIGN * (int16_t)ALIGN_STEP_COUNTS) > ALIGN_STEP_TOLERANCE){
+            Align_WaitOrFail(8U, elapsed); //ÁíÒ»²àÎ»ÒÆÎ´ºÏ¸ñÊ±¼ÌĞøÔ­¹Û²ìÔ¤Ëã£¬²»ÌáÇ°½øÈë×îÖÕÁãµãÈ·ÈÏ¡£
+            return;                     //·´B²Î¿¼²»¿ÉĞÅ£¬½ûÖ¹ÓÃºóĞøÕıA·µ»ØÑÚ¸Ç±¾¶ÎÒì³£¡£
+        }
+        AlignOppositeB = count;          //±£´æ·´BÊµ¼Êµ½Î»Î»ÖÃ£¬×îÖÕ·µ»Ø±ØĞëÒÔËü¼ÆËãÕıÏòÎ»ÒÆ¡£
+    }else if(state == ALIGN_A_VERIFY){
+        step_delta = Align_Delta(count, AlignOppositeB); //´Ó·´BÕıÏò·µ»ØÍ¬Ò»A£¬Ôö¼Ó²»Í¬ÓÚÇ°Á½´ÎÍ¬²à·µ»ØµÄÖ¤¾İ¡£
+        if(abs(step_delta - ALIGN_ENCODER_SIGN * (int16_t)ALIGN_STEP_COUNTS) > ALIGN_STEP_TOLERANCE){
+            Align_WaitOrFail(9U, elapsed); //×îºó·µ»ØÎ´ºÏ¸ñÊ±ÏÈµÈÔ­¹Û²ìÊ±¼ä£¬²»ÄÜÎª¼Ó¿ì¶¨Î»¶ø·¢²¼´íÎóÁãµã¡£
+            return;                     //±£Áô±àÂëÆ÷Ô­Ê¼¼ÆÊı£¬µÈ´ıÓĞ½ç²¹ÊÔ»òÃ÷È·ÖØ¶¨Î»¡£
+        }
+        if(abs(Align_Delta(count, AlignFirstA)) > ALIGN_RETURN_TOLERANCE ||
+           abs(Align_Delta(count, AlignSecondA)) > ALIGN_RETURN_TOLERANCE){
+            Align_WaitOrFail(4U, elapsed); //×îÖÕA²»Ò»ÖÂÊ±ÏÈµÈÔ­¹Û²ìÔ¤Ëã£¬ÈÔ²»ÄÜ½«Á½²à²»Ò»ÖÂÆ½¾ùºó·ÅĞĞ¡£
+            return;                     //ÖØ¸´Î»ÖÃ´æÔÚ·½ÏòÒÀÀµ£¬Áãµã¼ÌĞøÎŞĞ§¡£
+        }
     }
     primask = __get_PRIMASK();
     __disable_irq();                      //BREAK¿ÉËæÊ±³·ÏúĞ£×¼£¬²»ÄÜ±»ËæºóÒ»´Î½×¶ÎµİÔö¸²¸Ç¡£
     if(App.Err == E_NONE0 && App.Status == CTLS_ALIGN && AlignState == state){
-        AlignState = state + 1U;          //BÔ¤¶¨Î»¡úAºòÑ¡¡úB¼ì²é¡úA¼ì²é£¬½öÌá½»Î´±»³·ÏúµÄ¿ìÕÕ¡£
-        AlignPhaseTick = now;             //Ã¿¸ö½×¶Îµ¥¶ÀÏŞÖÆ×î³¤¼ÓÁ¦Ê±¼ä¡£
-        Align_ResetStill(now);            //ÉÏÒ»Ïà¾²Ö¹Ê±¼ä²»ÄÜ½è¸øÏÂÒ»Ïà¡£
+        Align_RecordPhase((uint8_t)(state - ALIGN_B_FIRST), count, now); //Óë½×¶ÎÌá½»Í¬Ò»ÁÙ½çÇøÊÕ¼¯Î»ÖÃºÍÍêÕûµçÁ÷Ñù±¾¡£
+        if(state == ALIGN_A_VERIFY){
+            Align_Finish();               //×îºóÒ»¶ÎÒ²ÒÑ¼ÇÂ¼ÇÒÈ«²¿¼¸ºÎÅĞ¾İÍ¨¹ı£¬²ÅÇå±àÂëÆ÷²¢·¢²¼³É¹¦¡£
+        }else{
+            AlignState = state + 1U;      //°´ÕıB/ÕıA/ÕıB/ÕıA/·´B/ÕıAË³ĞòÍÆ½ø£¬²»Ìø¹ıÁíÒ»²àÈ·ÈÏ¡£
+            AlignPhaseTick = now;         //Ã¿¸ö½×¶ÎÈÔÏŞÖÆÎªÔ­500/300ms¼Ó20msÓàÁ¿£¬Ê§°Ü²»»áÎŞÏŞÑÓÊ±¡£
+            AlignPower = 0.0f;            //»»ÏàºóÖØĞÂ´ÓÁãÅÀÉı£¬²»Ôö¼Ó¶¨Î»µçÑ¹»òµş¼ÓÁ½ÏàÂú·ùÊä³ö¡£
+            AlignSampleValid = 0U;        //ĞÂ½×¶Î±ØĞë²É¼¯×Ô¼ºµÄÑù±¾£¬Î´²Éµ½Ê±Õï¶ÏÓĞĞ§Î»±£³Ö0¡£
+            AlignTableIndex = (AlignState == ALIGN_B_CHECK) ? ALIGN_STEP_COUNTS :
+                ((AlignState == ALIGN_B_OPPOSITE) ? (3U * ALIGN_STEP_COUNTS) : 0U); //·´BÎªËÄ·ÖÖ®ÈıµçÖÜÆÚ£¬ÆäÓàĞÂÔö·µ»ØÈÔÎªÕıA¡£
+            Align_ResetStill(now);        //¸÷½×¶ÎÖØĞÂÀÛ¼ÆÎÈ¶¨ÖÊÁ¿£¬²»ÄÜ½èÓÃÇ°Ò»ÏàµÄ¾²Ö¹Ê±¼ä¡£
+        }
     }
     if(primask == 0U){ __enable_irq(); }
 }
