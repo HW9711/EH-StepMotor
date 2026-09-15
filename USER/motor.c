@@ -38,8 +38,8 @@ uint16_t SMCPara[ParaNum] = {
 	0,		// -16 D轴KI			倍率1000
 	
 	//Q轴PI
-	14,		// -17 Q轴输出上限，单位V；由13升至14增加重载运行输出余量，需实测相电流与温升。
-	14,		// -18 Q轴负向输出限幅的绝对值，单位V；与参数17同为14，正反转增力一致且不改母线过流保护。
+	15,		// -17 Q轴正向输出上限，单位V，当前为15V；调大增加可用输出电压，调小限制运行输出。
+	15,		// -18 Q轴负向输出限幅的绝对值，单位V，当前为15V；调大增加负向可用输出电压，调小限制负向输出。
 	100,	// -19 Q轴Kp			倍率1000
 	0,		// -20 Q轴KI			倍率1000
 	
@@ -81,7 +81,7 @@ uint16_t SMCPara[ParaNum] = {
 	
 	100,		// -44 兼容保留旧启动定位时间；已验证零点的普通启停不重复定位。
 	4,			// -45 编码器偏置变化爬坡周期
-	55,			// -46 定位电压，单位0.1V；由50升至55即5.5V，首轮和补试同幅，需按电机额定相电流验收。
+	60,			// -46 定位电压，单位0.1V，当前为6.0V；调大增强定位励磁并增加发热，调小减弱励磁，首轮和补试使用同一上限。
 	
 	200,		// -47 停机转速
 	
@@ -232,6 +232,7 @@ static int16_t AlignCheckB = 0;            //校验B相到达后的计数。
 static int16_t AlignSecondA = 0;           //第二次同侧返回A的位置，后续与另一侧返回结果交叉比较。
 static int16_t AlignOppositeB = 0;          //反B相到位位置，最终A必须从此处正向返回而非重复同侧吸合。
 static volatile uint16_t AlignTableIndex = ALIGN_STEP_COUNTS; //静止坐标磁场方向，不能使用未经校准的编码器角度。
+static volatile uint16_t AlignPreviousIndex = ALIGN_STEP_COUNTS; //保存上一阶段已到位磁场，用于换相交接，避免带载时先撤力再吸合。
 
 /*
  * 函数功能：计算按TIM2实际4000计数周期回绕的原始位移。
@@ -587,6 +588,7 @@ static void Align_Begin(uint32_t now)
         AlignCandidate.sample_valid_mask = 0U; //本轮各阶段的采样有效性重新记录，不借用上轮电流。
         AlignCandidate.valid = 0U;        //候选工作区始终未发布，只在最终成功快照中置有效标志。
         AlignTableIndex = ALIGN_STEP_COUNTS; //B相正电压对应四分之一电周期。
+        AlignPreviousIndex = ALIGN_STEP_COUNTS; //每次首轮或补试重建起点，首段从零爬升，不继承上次故障前输出。
         Align_ResetStill(now);
         App.Start = 0U;
         App.AllRun = 0U;
@@ -648,14 +650,15 @@ static void Align_Finish(void)
 }
 
 /*
- * 函数功能：按原毫秒参数爬升六阶段固定相电压，幅值取参数46，保持原母线保护及补试同幅。
+ * 函数功能：首段从零爬升，后续阶段在原时长内线性交接两相电压，避免换相失力且不提高电压上限。
  * 输入参数：无。
  * 返回参数：无。
  */
 void Motor_AlignOutput(void)
 {
     uint32_t primask;                     //仅最终输出提交使用短临界区，时间计算不阻塞中断。
-    float maximum = (float)MCPara[46] / 10.0f; //参数46按0.1V换算，当前候选5.5V；补试不再次升压，实际相电流仍须台架确认。
+    float maximum = (float)MCPara[46] / 10.0f; //将参数46换算为V，默认60对应6.0V；补试使用相同定位电压上限。
+    float previous_power;                //上一磁场的剩余幅值；与新磁场幅值之和不超过参数46，避免两相同时满幅。
     uint32_t ramp_ms = ALIGN_RAMP_MS;     //原参数51×52给出真实爬升时间，不依赖PWM_FRE注释或中断次数。
     uint32_t elapsed = HAL_GetTick() - AlignPhaseTick; //同一阶段按毫秒时钟计时，PWM频率变化不再加快定位爬升。
     if(App.Err != E_NONE0 || AlignState < ALIGN_B_FIRST || AlignState > ALIGN_A_VERIFY){
@@ -686,9 +689,10 @@ void Motor_AlignOutput(void)
             AlignSampleTick = HAL_GetTick(); //记录样本时刻，无效新样本不会覆盖旧的有效记录。
             AlignSampleValid = 1U;         //所有样本字段写完后才允许失败快照引用。
         }
-        AlignPower = maximum * (float)elapsed / (float)ramp_ms; //各固定相都从零爬升到原定位电压，撤回新增相电流及母线降压限制。
-        Set_OutPut_A(AlignPower * cos_table[AlignTableIndex], App.Cal.voltage); //前四阶段保持原序，再以反B/正A验证另一侧，不使用未校准编码器角度。
-        Set_OutPut_B(AlignPower * sin_table[AlignTableIndex], App.Cal.voltage);
+        AlignPower = maximum * (float)elapsed / (float)ramp_ms; //新磁场仍按500ms爬升，满幅后才允许累计定位稳定窗口。
+        previous_power = (AlignState == ALIGN_B_FIRST) ? 0.0f : maximum - AlignPower; //首段保持零起步；后续逐渐撤去上一相，消除换相零励磁窗口。
+        Set_OutPut_A(AlignPower * cos_table[AlignTableIndex] + previous_power * cos_table[AlignPreviousIndex], App.Cal.voltage); //A相提交前后磁场加权值，沿原顺序平滑转向，不使用未校准编码器角度。
+        Set_OutPut_B(AlignPower * sin_table[AlignTableIndex] + previous_power * sin_table[AlignPreviousIndex], App.Cal.voltage); //B相同步交接，反B仍保持负向；正交向量合成幅值不超过定位上限。
     }else{
         Ctl_HardStop(App.Err != E_NONE0 ? App.Err : E_Hardware); //关功率并保留先发生的保护。
     }
@@ -827,8 +831,9 @@ void Motor_AlignProcess(void)
         }else{
             AlignState = state + 1U;      //按正B/正A/正B/正A/反B/正A顺序推进，不跳过另一侧确认。
             AlignPhaseTick = now;         //每个阶段仍限制为原500/300ms加20ms余量，失败不会无限延时。
-            AlignPower = 0.0f;            //换相后重新从零爬升，不增加定位电压或叠加两相满幅输出。
+            AlignPower = 0.0f;            //仅重置新磁场爬升进度，输出由上一相连续交接，不实际撤去全部励磁。
             AlignSampleValid = 0U;        //新阶段必须采集自己的样本，未采到时诊断有效位保持0。
+            AlignPreviousIndex = AlignTableIndex; //临界区内先保存刚通过校验的磁场方向，再发布下一目标方向。
             AlignTableIndex = (AlignState == ALIGN_B_CHECK) ? ALIGN_STEP_COUNTS :
                 ((AlignState == ALIGN_B_OPPOSITE) ? (3U * ALIGN_STEP_COUNTS) : 0U); //反B为四分之三电周期，其余新增返回仍为正A。
             Align_ResetStill(now);        //各阶段重新累计稳定质量，不能借用前一相的静止时间。
