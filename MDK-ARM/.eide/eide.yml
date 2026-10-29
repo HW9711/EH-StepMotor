@@ -92,7 +92,8 @@ targets:
         - RTE/_GE2415_BuJin
       libList: []
     excludeList: []
-    settings: {}
+    settings:
+      debugger: cortex-debug
     toolchain: AC5
     toolchainConfigMap:
       AC5:

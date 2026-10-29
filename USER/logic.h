@@ -47,6 +47,7 @@ typedef struct
 }MCUART_Type;
 
 void UartDealResponse(void);
+void PumpSoftwareVersion_Init(void); /* 功率控制启动前生成版本缓存。 */
 void Ctl_Logic(void);
 void Usart_Receive_Data(UART_HandleTypeDef *huart);
 void UARTDealResponse(void);

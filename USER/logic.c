@@ -1,4 +1,5 @@
 #include "logic.h"
+#include "driver_software_version.h" /* 版本缓存仅在逻辑模块生成和查询。 */
 #include "main.h"
 #include "usart.h"
 #include "tim.h" //启停提交前核对TIM1 BREAK标志，显式引用定时器句柄声明。
@@ -178,7 +179,37 @@ static void UartCommand_CheckTimeout(void)
 }
 
 /*
- * 函数功能：处理一帧封存的泵命令并维护驱动端100ms命令租约。
+ * 函数功能：在功率控制和看门狗启动前生成泵固件版本缓存。
+ * 输入参数：无。
+ * 返回参数：无。
+ */
+void PumpSoftwareVersion_Init(void)
+{
+    DriverSwVersion_Init(); /* 启动时计算一次，运行期间查询不扫描Flash。 */
+}
+/*
+ * 函数功能：处理独立AB版本查询，不把查询当作速度帧或通信续约。
+ * 输入参数：frame为ISR封存的六字节帧；length为实际长度。
+ * 返回参数：属于版本帧返回1，否则返回0交给原控制解析。
+ */
+static uint8_t PumpSoftwareVersion_Query(const uint8_t *frame, uint16_t length)
+{
+    uint16_t crc; /* 保存真实CRC，禁止使用测试旁路。 */
+    uint8_t i; /* 复制32字节缓存。 */
+    if (length != 6U || frame[0] != 0xABU) return 0U; /* 其它帧保持原控制协议。 */
+    crc = CRC_Calc((unsigned char *)frame, 4U); /* 校验帧头、操作码和两个保留字节。 */
+    if (frame[1] != 1U || frame[2] != 0U || frame[3] != 0U || frame[4] != (uint8_t)crc || frame[5] != (uint8_t)(crc >> 8)) return 1U; /* 错误版本帧丢弃且不续约。 */
+    if (huart3.gState != HAL_UART_STATE_READY) return 1U; /* 上一DMA还在发送时不能覆盖共享发送缓存。 */
+    SerUart3.T_DATA[0] = 0xABU; SerUart3.T_DATA[1] = 1U; SerUart3.T_DATA[2] = 32U; /* 独立响应头，绝不作为7字节反馈。 */
+    for (i = 0U; i < 32U; ++i) SerUart3.T_DATA[3U + i] = s_driver_sw_record[i]; /* 复制真实固件记录。 */
+    crc = CRC_Calc(SerUart3.T_DATA, 35U); /* 全响应校验。 */
+    SerUart3.T_DATA[35] = (uint8_t)crc; SerUart3.T_DATA[36] = (uint8_t)(crc >> 8); /* CRC低字节先发送。 */
+    (void)HAL_UART_Transmit_DMA(&huart3, SerUart3.T_DATA, 37U); /* 仅发送版本，不改速度、保护、定位和租约状态。 */
+    return 1U; /* 查询处理结束，调用方仍执行超时保护。 */
+}
+
+/*
+ * 函数功能：处理控制或版本帧，版本查询不刷新100ms控制租约。
  * 输入参数：无。
  * 返回参数：无。
  */
@@ -191,6 +222,10 @@ void UartDealResponse(void)
 	uint16_t speed = 0U;                     //保存通过校验的速度幅值。
 
 	if(UartCommand_TakeSnapshot(frame, &frame_length) != 0U){
+		if(PumpSoftwareVersion_Query(frame, frame_length) != 0U){ /* 版本帧与控制帧分流，查询不能使泵运行或清除保护。 */
+			UartCommand_CheckTimeout(); /* 版本查询期间仍保持原100ms断联保护。 */
+			return; /* 不进入速度和定位命令处理。 */
+		}
 		if(UartCommand_IsValid(frame, frame_length, &direction, &speed) != 0U){
 			primask = __get_PRIMASK();         //防止零速清故障与校准撤销在同一帧中互相覆盖。
 			__disable_irq();                   //仅保护下面的目标/授权状态更新。

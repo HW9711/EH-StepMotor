@@ -118,6 +118,7 @@ int main(void)
   MX_DAC1_Init();
 
   /* USER CODE BEGIN 2 */
+	PumpSoftwareVersion_Init(); /* 在功率输出、运行定时器和看门狗启动前完成版本CRC计算。 */
 	Hardware_Init();	//硬件初始化，各种打开
 	Soft_Init();			//软件初始化
 	Motor_AlignInit(); //启动非阻塞校准门禁，未验证编码器响应前保持PWM关闭。
